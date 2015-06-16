@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title></title>
+<style type="text/css">
+	svg.con {
+  width: 100%;
+  height: 640px;
+  background-color: #2e9;
+  
+  -ms-touch-action: none;
+      touch-action: none;
+}
+.edit-rectangle {
+  overflow: visible;
+  transform: translate3d(0px, 0px, 0px);
+}
+.edit-rectangle rect {
+  fill: rgba(0,0,0,0);
+  stroke: #fff;
+  
+  transition: fill 0.3s, stroke 0.3s;
+}
+.handler{
+  r:20px;
+  fill:red;
+}
+body { margin: 0; }
+</style>
+</head>
+<body>
+
+<svg class="con">
+</svg>
+
+
+<script type="text/javascript" src="http://1111hui.com/js/zepto.js"></script>
+<script type="text/javascript" src="draggable.js"></script>
+<script type="text/javascript">
+var svgCanvas = document.querySelector('svg.con'),
+    svgNS = 'http://www.w3.org/2000/svg',
+    rectangles = [];
+  
+function Rectangle (x, y, w, h, svgCanvas) {
+  this.x = x;
+  this.y = y;
+  this.w = w;
+  this.h = h;
+  this.stroke = 6;
+  this.g = document.createElementNS(svgNS, 'svg');
+  this.el = document.createElementNS(svgNS, 'rect');
+  this.handler = document.createElementNS(svgNS, 'circle');
+
+  this.g.setAttribute('data-index', rectangles.length);
+  this.g.setAttribute('id', 'g'+rectangles.length);
+  this.g.setAttribute('class', 'edit-rectangle');
+  rectangles.push(this);
+
+  this.handler.setAttribute('class', 'handler');
+
+  this.draw();
+  svgCanvas.appendChild(this.g);
+  this.g.appendChild(this.el);
+  this.g.appendChild(this.handler);
+}
+
+Rectangle.prototype.draw = function () {
+  var x = this.x,
+      y = this.y,
+      w = this.w,
+      h = this.h;
+  
+  this.g.setAttribute('x', x );
+  this.g.setAttribute('y', y );
+  this.el.setAttribute('x', this.stroke / 2);
+  this.el.setAttribute('y', this.stroke / 2);
+
+  this.el.setAttribute('width' , Math.max(w, 10) - this.stroke);
+  this.el.setAttribute('height', Math.max(h, 10) - this.stroke);
+  this.el.setAttribute('stroke-width', this.stroke);
+
+  this.handler.setAttribute('r', 40 );
+  this.handler.setAttribute('cx', this.el.getAttribute('width') );
+  this.handler.setAttribute('cy', this.el.getAttribute('height') );
+  this.handler.style.fill='red';
+}
+
+
+document.onselectstart = function(){ return false; };
+document.body.setAttribute('unselectable', 'on', 0);
+
+
+var optionsDrag = {
+  limit: svgCanvas,
+  setCursor: 'move',
+  setPosition:false,
+  useGPU:true,
+  calcXY: function(me){
+    var g =me.element.parentNode;
+    return {
+      left: parseInt(g.getAttribute('x')),
+      top: parseInt(g.getAttribute('y')) 
+    }
+  },
+  onDrag: function (element, x, y, e) {
+    var rectangle = rectangles[element.parentNode.getAttribute('data-index')];
+    rectangle.x = ~~x;
+    rectangle.y = ~~y;
+    rectangle.draw();
+  }
+};
+
+var optionsSize = {
+  limit: svgCanvas,
+  setCursor: 'nwse-resize',
+  setPosition:false,
+  useGPU:true,
+  calcXY: function(me){
+    var g =me.element;
+    return {
+      left: parseInt(g.getAttribute('cx')),
+      top: parseInt(g.getAttribute('cy')) 
+    }
+  },
+  onDrag: function (element, x, y, e) {
+    var rectangle = rectangles[element.parentNode.getAttribute('data-index')];
+    rectangle.w = ~~x+ ~~element.previousSibling.getAttribute('stroke-width');
+    rectangle.h = ~~y+ ~~element.previousSibling.getAttribute('stroke-width');
+    rectangle.draw();
+  }
+};
+
+
+var j=0;
+for (var i = 0; i < 5; i++) {
+  j=i%8;
+  t=Math.floor(i/8);
+  var shape = new Rectangle(50 + 80 * t, 80+j*80, 80, 80, svgCanvas);
+  
+  new Draggable(shape.el, optionsDrag);
+  new Draggable(shape.handler, optionsSize);
+
+}
+
+
+
+/*
+Function: PointInRect( {x:10,y:10}, {x:0,y:5,w:100,h:100} )
+*/
+function PointInRect (x, y, rect) {
+  if(x<=rect.left+rect.width && x>=rect.left && y<=rect.top+rect.height && y>=rect.top){
+    return true;
+  }
+  return false;
+}
+
+var isTouch = ('ontouchstart' in window) || ('DocumentTouch' in window && document instanceof DocumentTouch);
+
+var startPoint;
+
+$(window).on(isTouch? 'touchmove' :'mousemove',function  (e) {
+
+});
+
+$(window).on(isTouch? 'touchend' :'mouseup',function  (e) {
+  Draggable.stopAll();
+});
+$(window).on(isTouch? 'touchstart' :'mousedown',function  (e) {
+  var ev = /touch/.test(e.type) ? e.touches[0] : e;
+  startPoint=null;
+  for(var i=0; i<rectangles.length; i++){
+
+      var R = rectangles[i];
+      //check handler 
+      var t = $(R.handler).offset();
+      if( PointInRect(ev.pageX, ev.pageY, t) ){
+        R.g.classList.add('dragging');
+        svgCanvas.appendChild( R.g );
+        var dragID = R.handler.getAttribute('data-drag-id');
+        Draggable.stopAll();
+        var handlerDragObj = Draggable.array[dragID];
+        handlerDragObj.start(e);
+        return;
+      }
+
+      //check border
+      var t = $(R.el).offset();
+      var border = ~~R.el.getAttribute('stroke-width');
+      if(isTouch) border=44;
+
+      if( PointInRect(ev.pageX, ev.pageY, {left: t.left-border/2, top:t.top, width:border, height:t.height} ) ||
+          PointInRect(ev.pageX, ev.pageY, {left: t.left+t.width-border/2, top:t.top, width:border, height:t.height} ) ||
+          PointInRect(ev.pageX, ev.pageY, {left:t.left, top: t.top-border/2, width:t.width, height:border} ) ||
+          PointInRect(ev.pageX, ev.pageY, {left:t.left, top: t.top+t.height-border/2, width:t.width, height:border} )
+      ) {
+        R.g.classList.add('dragging');
+        svgCanvas.appendChild( R.g );
+        var dragID = R.el.getAttribute('data-drag-id');
+        Draggable.stopAll();
+        var handlerDragObj = Draggable.array[dragID];
+        handlerDragObj.start(e);
+        return;
+      }
+  }
+
+  startPoint= [x:ev.pageX, y:ev.pageY];
+  
+  
+});
+
+
+</script>
+
+</body>
+</html>
