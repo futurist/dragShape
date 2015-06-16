@@ -12,10 +12,24 @@
 
 <svg width="1640" height='1640'>
 
+<defs>
+<marker id="triangle" preserveAspectRatio="xMinYMin meet"
+  viewBox="0 0 100 100" refX="50" refY="50"
+  markerUnits="userSpaceOnUse"
+  stroke="#f00"
+  fill="#f00"
+  stroke-linecap="round"
+  stroke-width="10"
+  stroke-linejoin="bevel"
+  markerWidth="40" markerHeight="30"
+  orient="auto">
+  <path d="M 0 0 L 100 50 L 0 100 L 30 50 z" />
+</marker>
+</defs>
 
-<path  id="spline" stroke="#000" fill="none" d="" />
+<path  id="spline" stroke="#000" fill="none" d=""  />
 
-<path stroke="#000" stroke-width="2" fill="none" d="M20,380 R58,342 100,342 100,300 140,250 190,210 220,197 250,184 280,155 310,260 404,20"/>
+<!-- <path stroke="#000" stroke-width="2" fill="none" d="M20,380 R58,342 100,342 100,300 140,250 190,210 220,197 250,184 280,155 310,260 404,20"/> -->
 
 </svg>
 
@@ -25,42 +39,71 @@
     var path = document.getElementById("spline");
     var d = "";
     var i = 0;
+    var rPath=[];
+    var distance=10;
 
-    window.addEventListener('dblclick',  function(){ hideDot() });
-    window.addEventListener('mousemove', setDot )
-    window.addEventListener('mouseup', setPath )
 
-    function calcDist (x1,y1,x2,y2) {
-    	return Math.sqrt( Math.pow(x2-x1, 2) + Math.pow(y2-y1, 2) );
+    var isTouch = ('ontouchstart' in window) || ('DocumentTouch' in window && document instanceof DocumentTouch);
+    var downE = isTouch? 'touchstart' :'mousedown';
+    var moveE = isTouch? 'touchmove' :'mousemove';
+    var upE = isTouch? 'touchend' :'mouseup';
+
+    NodeList.prototype.forEach = Array.prototype.forEach;
+
+    window.addEventListener(moveE, setDot )
+    window.addEventListener(downE, startPath )
+    window.addEventListener(upE, setPath )
+
+    function calcDist (a,b) {
+    	return Math.sqrt( Math.pow(a[0]-b[0], 2) + Math.pow(a[1]-b[1], 2) );
     }
 
     function  hideDot (hide) {
-      var c = document.querySelectorAll('circle');
+      // hide:undefined = toggle, hide:false = show, hide:true = hide;
+      var c = document.querySelectorAll('circle.hint');
       for(var j=0;j<c.length; j++){
         if(typeof hide=='undefined') c[j].classList.toggle('hidden');
         if(hide==false) c[j].classList.remove('hidden');
         if(hide==true) c[j].classList.add('hidden');
       }
     }
+    var drawing = false;
+    function startPath (evt) {
+      var el = document.createElementNS(svgns, "path");
+      el.setAttribute( "stroke", "#F00" );
+      el.setAttribute( "stroke-width", '2' );
+      el.setAttribute( "fill", "none" );
+      document.querySelector('svg').appendChild( el );
+      path = el;
+      rPath=[];
+      drawing=true;
+    }
 
-    var rPath=[];
     function setDot(evt)
     {
-    	if(evt.buttons<1)return;
+    	if(!drawing)return;
+      var evt = /touch/.test(evt.type) ? evt.touches[0] : evt;
       var L = rPath.length;
-    	if(L && calcDist(rPath[L-1][0], rPath[L-1][1], evt.clientX, evt.clientY)<50 )return;
+      var x = evt.clientX;
+      var y = evt.clientY;
+    	if(L && calcDist(rPath[L-1], [x, y])<distance )return;
       var el = document.createElementNS(svgns, "circle");
-      el.setAttribute( "cx", evt.clientX );
-      el.setAttribute( "cy", evt.clientY );
+      el.setAttribute( "class", 'hint' );
+      el.setAttribute( "cx", x );
+      el.setAttribute( "cy", y );
       el.setAttribute( "r", "3" );
       el.setAttribute( "fill", "red" );
       document.querySelector('svg').appendChild( el );
-      
-      rPath.push([evt.clientX, evt.clientY]);
+
+      rPath.push([x, y]);
     }
 
     function setPath () {
-      var d='';
+      drawing = false;
+      var t, d='';
+      var startP = rPath[0];
+      var endP = startP;
+
       for(var i=0; i<rPath.length; i++){
         var p=rPath[i];
         if ( 0 == i ) {
@@ -71,8 +114,16 @@
           d += " " + p[0] + "," + p[1];
         }
       }
-      path.setAttribute("d", parsePath( d,true ) );
-      hideDot(true);
+      if( rPath.length>5 && calcDist(startP, p)<50 ){
+        d+=" M" + p[0] + "," + p[1];
+        d+=" L" + startP[0] + "," + startP[1];
+      }
+
+      path.setAttribute("d", parsePath( d,true, 10 ) );
+      path.setAttribute("marker-end", "url(#triangle)" );
+      document.querySelectorAll('circle.hint').forEach(function  (v) {
+        v.parentNode.removeChild(v);
+      });
     }
 
   </script>
