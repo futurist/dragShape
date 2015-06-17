@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<title></title>
+  <title></title>
 <style type="text/css">
-	.hidden{
-		display:none;
-	}
+  .hidden{
+    display:none;
+  }
 </style>
 </head>
 <body>
@@ -34,6 +34,7 @@
 </svg>
 
   <script type="text/javascript" src="catmullrom2bezier.js"></script>
+  <script type="text/javascript" src="curve_calc.js"></script>
   <script type="text/javascript">
     var svgns = "http://www.w3.org/2000/svg";
     var path = document.getElementById("spline");
@@ -55,7 +56,7 @@
     window.addEventListener(upE, setPath )
 
     function calcDist (a,b) {
-    	return Math.sqrt( Math.pow(a[0]-b[0], 2) + Math.pow(a[1]-b[1], 2) );
+      return Math.sqrt( Math.pow(a[0]-b[0], 2) + Math.pow(a[1]-b[1], 2) );
     }
 
     function  hideDot (hide) {
@@ -81,12 +82,12 @@
 
     function setDot(evt)
     {
-    	if(!drawing)return;
+      if(!drawing)return;
       var evt = /touch/.test(evt.type) ? evt.touches[0] : evt;
       var L = rPath.length;
       var x = evt.clientX;
       var y = evt.clientY;
-    	if(L && calcDist(rPath[L-1], [x, y])<distance )return;
+      if(L && calcDist(rPath[L-1], [x, y])<distance )return;
       var el = document.createElementNS(svgns, "circle");
       el.setAttribute( "class", 'hint' );
       el.setAttribute( "cx", x );
@@ -103,9 +104,39 @@
       var t, d='';
       var startP = rPath[0];
       var endP = startP;
+      var points=[];
+      var L = rPath.length;
+
+      //interpolation using Curve to close the path.
+      if( L>5 ){
+        var _seg=2;
+        var _tension=5;
+        var _ps = Math.floor(L/2);
+        for(var c=0, i=_ps; !(c>0 && i>_ps) ; i++) {
+          if(i==L){
+            c++;
+            i=0;
+          }
+          points.push( rPath[i][0], rPath[i][1] );
+        }
+        var res = getCurvePoints( points, _tension, _seg );
+        
+        var _resStart = (_ps-1+L%2)*_seg*2 ;
+        var _resLen = _seg*2;
+        
+        var _interpo=[]
+        for(var i = _resStart; i <= _resStart+_resLen; i += 2){
+          _interpo.push([ res[i], res[i+1] ]);
+        }
+
+        rPath = rPath.concat( _interpo.slice(1) );
+      }
+      //end of interpo
+
 
       for(var i=0; i<rPath.length; i++){
         var p=rPath[i];
+        
         if ( 0 == i ) {
           d = "M" + p[0] + "," + p[1];
         } else if ( 1 == i ) {
@@ -114,13 +145,16 @@
           d += " " + p[0] + "," + p[1];
         }
       }
-      if( rPath.length>5 && calcDist(startP, p)<50 ){
-        d+=" M" + p[0] + "," + p[1];
-        d+=" L" + startP[0] + "," + startP[1];
+
+      //Auto Close: LineTo way.
+      if( L>5 && calcDist(startP, p)<50 ){
+        //d+=" M" + p[0] + "," + p[1];
+        //d+=" L" + startP[0] + "," + startP[1];
       }
 
+
       path.setAttribute("d", parsePath( d,true, 10 ) );
-      path.setAttribute("marker-end", "url(#triangle)" );
+      //path.setAttribute("marker-end", "url(#triangle)" );
       document.querySelectorAll('circle.hint').forEach(function  (v) {
         v.parentNode.removeChild(v);
       });
