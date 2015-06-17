@@ -85,8 +85,8 @@
       if(!drawing)return;
       var evt = /touch/.test(evt.type) ? evt.touches[0] : evt;
       var L = rPath.length;
-      var x = evt.clientX;
-      var y = evt.clientY;
+      var x = evt.pageX;
+      var y = evt.pageY;
       if(L && calcDist(rPath[L-1], [x, y])<distance )return;
       var el = document.createElementNS(svgns, "circle");
       el.setAttribute( "class", 'hint' );
@@ -99,40 +99,48 @@
       rPath.push([x, y]);
     }
 
+    function calcInterpo (rPath, tension) {
+      //interpolation using Curve to close the path.
+      //https://github.com/epistemex/cardinal-spline-js
+      var d="";
+      var L=rPath.length;
+      var _seg=2;
+      var _tension= tension||0;
+      var _ps = Math.floor(L/2);
+      var points=[];
+
+      for(var c=0, i=_ps; !(c>0 && i>_ps) ; i++) {
+        if(i==L){
+          c++;
+          i=0;
+        }
+        points.push( rPath[i][0], rPath[i][1] );
+      }
+      var res = getCurvePoints( points, _tension, _seg );
+      
+      var _resStart = (_ps-1+L%2)*_seg*2 ;
+      var _resLen = _seg*2;
+      
+      var _interpo=[]
+      for(var i = _resStart; i <= _resStart+_resLen; i += 2){
+        _interpo.push([ res[i], res[i+1] ]);
+      }
+
+      d+=" C"+_interpo[1][0]+","+_interpo[1][1];
+      d+=" "+_interpo[1][0]+","+_interpo[1][1];
+      d+=" "+_interpo[2][0]+","+_interpo[2][1];
+      return d;
+      //end of interpo
+    }
+
     function setPath () {
       drawing = false;
       var t, d='';
       var startP = rPath[0];
       var endP = startP;
-      var points=[];
       var L = rPath.length;
 
-      //interpolation using Curve to close the path.
-      if( L>5 ){
-        var _seg=2;
-        var _tension=5;
-        var _ps = Math.floor(L/2);
-        for(var c=0, i=_ps; !(c>0 && i>_ps) ; i++) {
-          if(i==L){
-            c++;
-            i=0;
-          }
-          points.push( rPath[i][0], rPath[i][1] );
-        }
-        var res = getCurvePoints( points, _tension, _seg );
-        
-        var _resStart = (_ps-1+L%2)*_seg*2 ;
-        var _resLen = _seg*2;
-        
-        var _interpo=[]
-        for(var i = _resStart; i <= _resStart+_resLen; i += 2){
-          _interpo.push([ res[i], res[i+1] ]);
-        }
-
-        rPath = rPath.concat( _interpo.slice(1) );
-      }
-      //end of interpo
-
+      if(!L) return;
 
       for(var i=0; i<rPath.length; i++){
         var p=rPath[i];
@@ -146,12 +154,18 @@
         }
       }
 
-      //Auto Close: LineTo way.
-      if( L>5 && calcDist(startP, p)<50 ){
-        //d+=" M" + p[0] + "," + p[1];
-        //d+=" L" + startP[0] + "," + startP[1];
-      }
+      //Auto Close: 
+      if( L>5 )
 
+      if( calcDist(startP, p)<50  ){ // &&
+        //drawing rect LineTo way.
+        d+=" M" + p[0] + "," + p[1];
+        d+=" L" + startP[0] + "," + startP[1];
+      } else {
+          //drawing circle Curve way.
+          d += calcInterpo(rPath, 10);
+          //rPath = rPath.concat( _interpo.slice(1) );
+      }
 
       path.setAttribute("d", parsePath( d,true, 10 ) );
       //path.setAttribute("marker-end", "url(#triangle)" );
