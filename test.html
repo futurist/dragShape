@@ -1,0 +1,49 @@
+	<!DOCTYPE html>
+	<html>
+	<head>
+		<title></title>
+		<style type="text/css">
+		body{
+			margin:0;
+			padding:0;
+		}
+		</style>
+	</head>
+	<body>
+	<svg xmlns="http://www.w3.org/2000/svg" version="1.1">
+	   <rect id="r1" x="5" y="5" width="40" height="40"/>
+	   <rect id="r2" x="105" y="105" width="40" height="40"/>
+	   <rect id="r3" x="5" y="5" width="40" height="40"/>
+	   <rect id="rr" x="5" y="5" width="400" height="400" fill="none" stroke="red" stroke-width="4" />
+	   <rect id="r4" x="5" y="5" width="40" height="40"/>
+	   <rect id="r5" x="5" y="5" width="40" height="40"/>
+	</svg>
+
+	<script type="text/javascript">
+
+	var isTouch = ('ontouchstart' in window) || ('DocumentTouch' in window && document instanceof DocumentTouch);
+	var downE = isTouch? 'touchstart' :'mousedown';
+	var moveE = isTouch? 'touchmove' :'mousemove';
+	var upE = isTouch? 'touchend' :'mouseup';
+
+	window.addEventListener(downE, startPath )
+	function startPath (evt) {
+		setTimeout(function  () {
+
+			var svg=document.querySelector('svg');
+			var r = svg.createSVGRect();
+			r.x = 80;
+			r.y = 80;
+			r.width = r.height = 44;
+			var getIntersectionList = svg.getIntersectionList(r, null );
+			var checkIntersection = svg.checkIntersection( document.querySelector('#r2'), r );
+			var elementFromPoint = document.elementFromPoint(10,80);
+			// alert("getIntersectionList: "+getIntersectionList);
+			// alert("checkIntersection: "+checkIntersection);
+			alert("elementFromPoint: "+elementFromPoint.id);
+		},1000);
+
+	}
+	</script>
+	</body>
+	</html>

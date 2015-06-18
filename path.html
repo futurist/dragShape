@@ -12,7 +12,11 @@
     -webkit-touch-callout: none;
   }
   path{
-  	pointer-events: visibleStroke;
+  	pointer-events: visible;
+  }
+  .hl{
+  	stroke-width:6px;
+  	stroke-dasharray: 20,5,5,5;
   }
 </style>
 </head>
@@ -48,9 +52,12 @@
     var path = document.getElementById("spline");
     var d = "";
     var i = 0;
+    var downX, downY;
     var rPath=[];
-    var distance=10;
-
+    var DOT_DISTANCE=10;
+    var DRAW_TOLERANCE=10;
+    var drawing = false;
+    var dragging = false;
 
     var isTouch = ('ontouchstart' in window) || ('DocumentTouch' in window && document instanceof DocumentTouch);
     var downE = isTouch? 'touchstart' :'mousedown';
@@ -59,9 +66,9 @@
 
     NodeList.prototype.forEach = Array.prototype.forEach;
 
-    window.addEventListener(moveE, setDot )
-    window.addEventListener(downE, startPath )
-    window.addEventListener(upE, setPath )
+    window.addEventListener(moveE, moveFunc )
+    window.addEventListener(downE, downFunc )
+    window.addEventListener(upE, upFunc )
 
     function calcDist (a,b) {
       return Math.sqrt( Math.pow(a[0]-b[0], 2) + Math.pow(a[1]-b[1], 2) );
@@ -76,18 +83,21 @@
         if(hide==true) c[j].classList.add('hidden');
       }
     }
-    var drawing = false;
-    function startPath (evt) {
-   	  var evt = /touch/.test(evt.type) ? evt.touches[0] : evt;
 
-      var el = document.createElementNS(svgns, "path");
-      el.setAttribute( "stroke", "#F00" );
-      el.setAttribute( "stroke-width", '2' );
-      el.setAttribute( "fill", "none" );
-      document.querySelector('svg').appendChild( el );
-      path = el;
-      rPath=[];
-      drawing=true;
+    function downFunc (evt) {
+   	  var evt = /touch/.test(evt.type) ? evt.touches[0] : evt;
+   	  var x = evt.pageX;
+   	  var y = evt.pageY;
+
+   	  if( !drawing && downX&&downY && calcDist([downX, downY], [x,y])<DRAW_TOLERANCE ){
+   	  	dragging = true;
+   	  }
+
+   	  downX = evt.pageX;
+   	  downY = evt.pageY;
+   	  document.querySelectorAll('.shape').forEach(function(v){
+   	  	v.classList.remove('hl');
+   	  });
       setTimeout(function  () {
       	//var element = document.elementFromPoint(evt.pageX, evt.pageY);
       	var svg=document.querySelector('svg');
@@ -96,21 +106,40 @@
       	r.y = evt.pageY-svg.offsetTop-44/2;
       	r.width = r.height = 44;
       	var els = svg.getIntersectionList(r, null);
-      	alert(els);
-      	console.log(els);
       }, 1000);
     }
 
-    function setDot(evt)
+    function moveFunc(evt)
     {
 
-      if(!drawing)return;
       evt.preventDefault();
       var evt = /touch/.test(evt.type) ? evt.touches[0] : evt;
-      var L = rPath.length;
       var x = evt.pageX;
       var y = evt.pageY;
-      if(L && calcDist(rPath[L-1], [x, y])<distance )return;
+
+      if( !dragging && !drawing && downX&&downY && calcDist([downX, downY], [x,y])>DRAW_TOLERANCE ){
+    	  drawing = true;
+	      var el = document.createElementNS(svgns, "path");
+	      el.setAttribute( "class", 'shape' );
+	      el.setAttribute( "stroke", "#F00" );
+	      el.setAttribute( "stroke-width", '2' );
+	      el.setAttribute( "fill", "none" );
+	      document.querySelector('svg').appendChild( el );
+	      path = el;
+	      rPath=[];
+      }
+
+      if(dragging){
+      	evt.target.setAttribute("x", x);
+      	evt.target.setAttribute("y", y);
+      	return;
+      }
+
+      if(!drawing)return;
+
+      var L = rPath.length;
+
+      if(L && calcDist(rPath[L-1], [x, y])<DOT_DISTANCE )return;
       var el = document.createElementNS(svgns, "circle");
       el.setAttribute( "class", 'hint' );
       el.setAttribute( "cx", x );
@@ -156,14 +185,34 @@
       //end of interpo
     }
 
-    function setPath () {
+    function upFunc (evt) {
+
+    	//init
+    	evt.preventDefault();
+    	var evt = /touch/.test(evt.type) ? evt.changedTouches[0] : evt;
+
+    	// just click, no motion
+    	if(!drawing){
+    		if(evt.target.tagName=='path') evt.target.classList.add('hl');
+    		return;
+    	}
+
+    	// yes motion, drawing path
       drawing = false;
+      dragging = false;
+
+      var x = evt.pageX;
+      var y = evt.pageY;
+
+      var L = rPath.length;
+
       var t, d='';
       var startP = rPath[0];
       var endP = startP;
-      var L = rPath.length;
 
-      if(!L) return;
+
+      if(!rPath || !L) return;
+
 
       for(var i=0; i<rPath.length; i++){
         var p=rPath[i];
