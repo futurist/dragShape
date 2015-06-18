@@ -3,12 +3,13 @@
 <head>
   <title></title>
 <style type="text/css">
+
   .hidden{
     display:none;
   }
-  * {
+  *:not(input):not(textarea) {
     -webkit-tap-highlight-color: rgba(0,0,0,0);
-    user-select: none;
+    -webkit-user-select: none;
     -webkit-touch-callout: none;
   }
   path{
@@ -45,6 +46,7 @@
 
 </svg>
 
+  <script type="text/javascript" src="zepto.js"></script>
   <script type="text/javascript" src="catmullrom2bezier.js"></script>
   <script type="text/javascript" src="curve_calc.js"></script>
   <script type="text/javascript">
@@ -52,19 +54,25 @@
     var path = document.getElementById("spline");
     var d = "";
     var i = 0;
-    var downX, downY;
+    var downX, downY, downTime;
     var rPath=[];
     var DOT_DISTANCE=10;
     var DRAW_TOLERANCE=10;
     var drawing = false;
     var dragging = false;
+    var oldTranslate;
+    var dragEl;
 
     var isTouch = ('ontouchstart' in window) || ('DocumentTouch' in window && document instanceof DocumentTouch);
     var downE = isTouch? 'touchstart' :'mousedown';
     var moveE = isTouch? 'touchmove' :'mousemove';
     var upE = isTouch? 'touchend' :'mouseup';
+    var leaveE = isTouch? 'touchcancel' :'mouseleave';
 
     NodeList.prototype.forEach = Array.prototype.forEach;
+
+    document.documentElement.style.webkitUserSelect='none';
+    document.documentElement.style.webkitTouchCallout='none';
 
     window.addEventListener(moveE, moveFunc )
     window.addEventListener(downE, downFunc )
@@ -84,71 +92,179 @@
       }
     }
 
-    function downFunc (evt) {
-   	  var evt = /touch/.test(evt.type) ? evt.touches[0] : evt;
+    function downFunc (e) {
+      e.preventDefault();
+
+   	  var evt = /touch/.test(e.type) ? e.touches[0] : e;
    	  var x = evt.pageX;
    	  var y = evt.pageY;
 
-   	  if( !drawing && downX&&downY && calcDist([downX, downY], [x,y])<DRAW_TOLERANCE ){
-   	  	dragging = true;
-   	  }
-
    	  downX = evt.pageX;
    	  downY = evt.pageY;
-   	  document.querySelectorAll('.shape').forEach(function(v){
-   	  	v.classList.remove('hl');
-   	  });
-      setTimeout(function  () {
-      	//var element = document.elementFromPoint(evt.pageX, evt.pageY);
-      	var svg=document.querySelector('svg');
-      	var r = svg.createSVGRect();
-      	r.x = evt.pageX-svg.offsetLeft-44/2;
-      	r.y = evt.pageY-svg.offsetTop-44/2;
-      	r.width = r.height = 44;
-      	var els = svg.getIntersectionList(r, null);
-      }, 1000);
+
+   	  // long click to trigger dragging mode
+
+   	  downTime = window.setTimeout(function() {
+   	  	$(evt.target).addClass('hl');
+   	  	dragging = true;
+   	  	oldTranslate = (getTranslateXY(evt.target));
+   	  	dragEl = evt.target;
+
+   	  },300)
+
+   	  if( $(evt.target).hasClass('hl') ){
+
+   	  	dragging = true;
+   	  	oldTranslate = (getTranslateXY(evt.target));
+   	  	dragEl = evt.target;
+
+   	  }else{
+
+   	  	dragging = false;
+   	  	document.querySelectorAll('.shape').forEach(function(v){
+   	  		$(v).removeClass('hl');
+   	  	});
+
+   	  }
+
     }
 
-    function moveFunc(evt)
+    function moveFunc(e)
     {
 
-      evt.preventDefault();
-      var evt = /touch/.test(evt.type) ? evt.touches[0] : evt;
+      e.preventDefault();
+      var evt = /touch/.test(e.type) ? e.touches[0] : e;
       var x = evt.pageX;
       var y = evt.pageY;
+	  clearTimeout(downTime);
 
-      if( !dragging && !drawing && downX&&downY && calcDist([downX, downY], [x,y])>DRAW_TOLERANCE ){
-    	  drawing = true;
-	      var el = document.createElementNS(svgns, "path");
-	      el.setAttribute( "class", 'shape' );
-	      el.setAttribute( "stroke", "#F00" );
-	      el.setAttribute( "stroke-width", '2' );
-	      el.setAttribute( "fill", "none" );
+      if(dragging ){
+
+	      	var dx = x-downX+oldTranslate[0];
+	      	var dy = y-downY+oldTranslate[1];
+	      	dragEl.setAttribute("transform", "translate("+ dx +","+ dy +")");
+
+      }else{
+
+
+	      if( !drawing && downX&&downY && calcDist([downX, downY], [x,y])>DRAW_TOLERANCE ){
+	    	  drawing = true;
+		      var el = document.createElementNS(svgns, "path");
+		      el.setAttribute( "class", 'shape' );
+		      el.setAttribute( "stroke", "#F00" );
+		      el.setAttribute( "stroke-width", '2' );
+		      el.setAttribute( "fill", "none" );
+		      document.querySelector('svg').appendChild( el );
+		      path = el;
+		      rPath=[];
+	      }
+
+	      if(!drawing)return;
+
+	      var L = rPath.length;
+
+	      if(L && calcDist(rPath[L-1], [x, y])<DOT_DISTANCE )return;
+	      var el = document.createElementNS(svgns, "circle");
+	      el.setAttribute( "class", 'hint' );
+	      el.setAttribute( "cx", x );
+	      el.setAttribute( "cy", y );
+	      el.setAttribute( "r", "3" );
+	      el.setAttribute( "fill", "red" );
 	      document.querySelector('svg').appendChild( el );
-	      path = el;
-	      rPath=[];
+
+	      rPath.push( [x, y] );
+
+
       }
 
-      if(dragging){
-      	evt.target.setAttribute("x", x);
-      	evt.target.setAttribute("y", y);
-      	return;
-      }
 
-      if(!drawing)return;
 
-      var L = rPath.length;
+    }
 
-      if(L && calcDist(rPath[L-1], [x, y])<DOT_DISTANCE )return;
-      var el = document.createElementNS(svgns, "circle");
-      el.setAttribute( "class", 'hint' );
-      el.setAttribute( "cx", x );
-      el.setAttribute( "cy", y );
-      el.setAttribute( "r", "3" );
-      el.setAttribute( "fill", "red" );
-      document.querySelector('svg').appendChild( el );
+    function upFunc (e) {
 
-      rPath.push( [x, y] );
+    	//init
+    	e.preventDefault();
+    	var evt = /touch/.test(e.type) ? e.changedTouches[0] : e;
+    	downX=downY=null;
+
+    	clearTimeout(downTime);
+
+    	// just click, no motion
+    	if( !dragging && !drawing) {
+    		if( $(evt.target).hasClass('shape') ) $(evt.target).addClass('hl');
+    		//return;
+    	}
+
+    	if(dragging){
+    		dragging=false;
+    	}
+
+	    if(drawing){
+
+	    	// yes motion, drawing path
+	      drawing = false;
+
+	      var x = evt.pageX;
+	      var y = evt.pageY;
+
+	      var L = rPath.length;
+
+	      var t, d='';
+	      var startP = rPath[0];
+	      var endP = startP;
+
+
+	      if(!rPath || !L) return;
+
+
+	      for(var i=0; i<rPath.length; i++){
+	        var p=rPath[i];
+
+	        if ( 0 == i ) {
+	          d = "M" + p[0] + "," + p[1];
+	        } else if ( 1 == i ) {
+	          d += " R" + p[0] + "," + p[1];
+	        } else {
+	          d += " " + p[0] + "," + p[1];
+	        }
+	      }
+
+	      //Auto Close:
+	      if( L>5 )
+
+	      if( calcDist(startP, p)<50  ){ // &&
+	        //drawing rect LineTo way.
+	        d+=" M" + p[0] + "," + p[1];
+	        d+=" L" + startP[0] + "," + startP[1];
+	      } else {
+	          //drawing circle Curve way.
+	          d += calcInterpo(rPath, 10);
+	          //rPath = rPath.concat( _interpo.slice(1) );
+	      }
+
+	      try{
+		      path.setAttribute("d", parsePath( d,true, 10 ) );
+		  }catch(e){
+
+		  }
+	      //path.setAttribute("marker-end", "url(#triangle)" );
+	      document.querySelectorAll('circle.hint').forEach(function  (v) {
+	        v.parentNode.removeChild(v);
+	      });
+	  }
+
+
+    }
+
+
+    function getTranslateXY(obj)
+    {
+        var style = obj.style, transform = style.transform || style.webkitTransform || style.mozTransform;
+        var transform =obj.getAttribute('transform');
+        if(!transform) return [0,0];
+		var zT = transform.match(/translate\(\s*([-0-9]+[\w%]*)\s*,\s*([-0-9]+[\w%]*)\s*\)/);
+        return zT ? [ parseInt(zT[1]), parseInt(zT[2]) ] : [0,0];
     }
 
     function calcInterpo (rPath, tension) {
@@ -185,66 +301,6 @@
       //end of interpo
     }
 
-    function upFunc (evt) {
-
-    	//init
-    	evt.preventDefault();
-    	var evt = /touch/.test(evt.type) ? evt.changedTouches[0] : evt;
-
-    	// just click, no motion
-    	if(!drawing){
-    		if(evt.target.tagName=='path') evt.target.classList.add('hl');
-    		return;
-    	}
-
-    	// yes motion, drawing path
-      drawing = false;
-      dragging = false;
-
-      var x = evt.pageX;
-      var y = evt.pageY;
-
-      var L = rPath.length;
-
-      var t, d='';
-      var startP = rPath[0];
-      var endP = startP;
-
-
-      if(!rPath || !L) return;
-
-
-      for(var i=0; i<rPath.length; i++){
-        var p=rPath[i];
-
-        if ( 0 == i ) {
-          d = "M" + p[0] + "," + p[1];
-        } else if ( 1 == i ) {
-          d += " R" + p[0] + "," + p[1];
-        } else {
-          d += " " + p[0] + "," + p[1];
-        }
-      }
-
-      //Auto Close:
-      if( L>5 )
-
-      if( calcDist(startP, p)<50  ){ // &&
-        //drawing rect LineTo way.
-        d+=" M" + p[0] + "," + p[1];
-        d+=" L" + startP[0] + "," + startP[1];
-      } else {
-          //drawing circle Curve way.
-          d += calcInterpo(rPath, 10);
-          //rPath = rPath.concat( _interpo.slice(1) );
-      }
-
-      path.setAttribute("d", parsePath( d,true, 10 ) );
-      //path.setAttribute("marker-end", "url(#triangle)" );
-      document.querySelectorAll('circle.hint').forEach(function  (v) {
-        v.parentNode.removeChild(v);
-      });
-    }
 
   </script>
 
