@@ -18,12 +18,18 @@
   .hl{
   	stroke-width:6px;
   	stroke-dasharray: 20,5,5,5;
+    cursor: -webkit-grabbing;
   }
+  .selectState{
+      cursor: crosshair;
+  }
+
+
 </style>
 </head>
 <body>
 
-<svg width="1640" height='1640'>
+<svg width="1640" height='1640' class="canvas">
 
 <defs>
 <marker id="triangle" preserveAspectRatio="xMinYMin meet"
@@ -40,6 +46,7 @@
 </marker>
 </defs>
 
+<rect id="selrect" style="display:none; stroke:#999; stroke-width:1; stroke-dasharray:10,5; fill:none;" />
 <path  id="spline" stroke="#000" fill="none" d=""  />
 
 <!-- <path stroke="#000" stroke-width="2" fill="none" d="M20,380 R58,342 100,342 100,300 140,250 190,210 220,197 250,184 280,155 310,260 404,20"/> -->
@@ -54,14 +61,14 @@
     var path = document.getElementById("spline");
     var d = "";
     var i = 0;
-    var downX, downY, downTime;
+    var downX, downY, downTimer;
     var rPath=[];
     var DOT_DISTANCE=10;
     var DRAW_TOLERANCE=10;
     var drawing = false;
     var dragging = false;
-    var oldTranslate;
-    var dragEl;
+    var selecting = false;
+    var selectedList = [];
 
     var isTouch = ('ontouchstart' in window) || ('DocumentTouch' in window && document instanceof DocumentTouch);
     var downE = isTouch? 'touchstart' :'mousedown';
@@ -94,33 +101,52 @@
 
     function downFunc (e) {
       e.preventDefault();
-
    	  var evt = /touch/.test(e.type) ? e.touches[0] : e;
    	  var x = evt.pageX;
    	  var y = evt.pageY;
+      var isShape = $(evt.target).hasClass('shape');
 
    	  downX = evt.pageX;
    	  downY = evt.pageY;
 
-   	  // long click to trigger dragging mode
 
-   	  downTime = window.setTimeout(function() {
-   	  	$(evt.target).addClass('hl');
-   	  	dragging = true;
-   	  	oldTranslate = (getTranslateXY(evt.target));
-   	  	dragEl = evt.target;
+      if(e.shiftKey && isShape && $('.shape.hl').length ){
+        $(evt.target).toggleClass('hl');
+        return;
+      }
 
-   	  },300)
+   	  // long click to trigger dragging mode && selecting mode
+
+   	  downTimer = window.setTimeout(function() {
+        //we are longclick on shape
+        if( isShape ){
+     	  	addSelectionList(evt.target);
+     	  	dragging = true;
+          $('.shape.hl').each(function  (i,v) {
+            $(v).attr('data-oldTrans', getTranslateXY(v).join(',') );
+          });
+        }else{
+          //we are longclick on SVG, selection mode
+          downTimer = window.setTimeout(function() {
+            selecting=true;
+            $('svg.canvas').addClass('selectState');
+          },300);
+        }
+   	  }, 100);
+
 
    	  if( $(evt.target).hasClass('hl') ){
 
    	  	dragging = true;
-   	  	oldTranslate = (getTranslateXY(evt.target));
-   	  	dragEl = evt.target;
+   	  	$('.shape.hl').each(function  (i,v) {
+          $(v).attr('data-oldTrans', getTranslateXY(v).join(',') );
+        });
 
-   	  }else{
+   	  }else {
 
    	  	dragging = false;
+
+        if(!e.shiftKey)
    	  	document.querySelectorAll('.shape').forEach(function(v){
    	  		$(v).removeClass('hl');
    	  	});
@@ -136,25 +162,58 @@
       var evt = /touch/.test(e.type) ? e.touches[0] : e;
       var x = evt.pageX;
       var y = evt.pageY;
-	  clearTimeout(downTime);
+      var dx = x-downX;
+      var dy = y-downY;
+      var isShape = $(evt.target).hasClass('shape');
+
+	    var dist = downX&&downY && calcDist([downX, downY], [x,y]) || 0;
+
+      if( dist>10 ) clearTimeout(downTimer);
+
+      if(selecting){
+
+        var svg=document.querySelector('svg.canvas');
+        var r = svg.createSVGRect();
+
+        r.width = Math.abs(dx);
+        r.height = Math.abs(dy);
+        r.x = dx>0? downX : downX+dx;
+        r.y = dy>0? downY : downY+dy;
+
+        $('#selrect').show().attr({x:r.x, y:r.y, width:r.width, height:r.height});
+
+        $('.shape').removeClass('hl');
+
+        var els = svg.getIntersectionList(r, null);
+        els.forEach(function(v){
+          addSelectionList(v);
+        });
+        return;
+
+      }
+
 
       if(dragging ){
 
-	      	var dx = x-downX+oldTranslate[0];
-	      	var dy = y-downY+oldTranslate[1];
-	      	dragEl.setAttribute("transform", "translate("+ dx +","+ dy +")");
+	      	$('.shape.hl').each(function  (i,v) {
+            var oldTrans = $(v).attr('data-oldTrans').split(',');
+            var tx = dx+ ~~oldTrans[0];
+            var ty = dy+ ~~oldTrans[1];
+            $(v).attr("transform", "translate("+ tx +","+ ty +")");
+          });
+          
 
       }else{
 
 
-	      if( !drawing && downX&&downY && calcDist([downX, downY], [x,y])>DRAW_TOLERANCE ){
+	      if( !drawing && dist >DRAW_TOLERANCE ){
 	    	  drawing = true;
 		      var el = document.createElementNS(svgns, "path");
 		      el.setAttribute( "class", 'shape' );
 		      el.setAttribute( "stroke", "#F00" );
 		      el.setAttribute( "stroke-width", '2' );
 		      el.setAttribute( "fill", "none" );
-		      document.querySelector('svg').appendChild( el );
+		      document.querySelector('svg.canvas').appendChild( el );
 		      path = el;
 		      rPath=[];
 	      }
@@ -170,7 +229,7 @@
 	      el.setAttribute( "cy", y );
 	      el.setAttribute( "r", "3" );
 	      el.setAttribute( "fill", "red" );
-	      document.querySelector('svg').appendChild( el );
+	      document.querySelector('svg.canvas').appendChild( el );
 
 	      rPath.push( [x, y] );
 
@@ -188,13 +247,21 @@
     	var evt = /touch/.test(e.type) ? e.changedTouches[0] : e;
     	downX=downY=null;
 
-    	clearTimeout(downTime);
+    	clearTimeout(downTimer);
+      
+      if(selecting){
+        selecting = false;
+        $('#selrect').hide();
+        $('svg.canvas').removeClass('selectState');
+        return;
+      }
 
     	// just click, no motion
-    	if( !dragging && !drawing) {
-    		if( $(evt.target).hasClass('shape') ) $(evt.target).addClass('hl');
-    		//return;
+    	if( !e.shiftKey && !dragging && !drawing) {
+    		if( $(evt.target).hasClass('shape') ) addSelectionList(evt.target);
+    		return;
     	}
+
 
     	if(dragging){
     		dragging=false;
@@ -257,6 +324,32 @@
 
     }
 
+
+    window.addEventListener('keydown', handleShortKey);
+
+    function handleShortKey (evt) {
+      var handled = false;
+      var cmd = (evt.ctrlKey ? 1 : 0) |
+            (evt.altKey ? 2 : 0) |
+            (evt.shiftKey ? 4 : 0) |
+            (evt.metaKey ? 8 : 0);
+
+      if (cmd === 0) { // no control key pressed at all.
+        switch (evt.keyCode) {
+          case 8:  //delete key : Delete the shape
+            var el = $('.shape.hl');
+            if( el.length ){
+              el.remove();
+            }
+        }
+      }
+
+    }
+
+    function addSelectionList (el) {
+      $(el).addClass('hl');
+      $(el).attr('data-oldTrans', getTranslateXY(el).join(',') );
+    }
 
     function getTranslateXY(obj)
     {
