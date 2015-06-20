@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <title></title>
 <style type="text/css">
@@ -29,29 +29,29 @@
 </head>
 <body>
 
-<svg width="1640" height='1640' class="canvas">
+<div id="svgCon">
+  
+  <svg width="1640" height='1640' class="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1">
+    <defs>
+    <marker id="triangle" preserveAspectRatio="xMinYMin meet"
+      viewBox="0 0 100 100" refX="50" refY="50"
+      markerUnits="userSpaceOnUse"
+      stroke="#f00"
+      fill="#f00"
+      stroke-linecap="round"
+      stroke-width="10"
+      stroke-linejoin="bevel"
+      markerWidth="40" markerHeight="30"
+      orient="auto">
+      <path d="M 0 0 L 100 50 L 0 100 L 30 50 z" />
+    </marker>
+    </defs>
+    <rect id="selrect" style="display:none; stroke:#999; stroke-width:1; stroke-dasharray:10,5; fill:none;" />
+    <path  id="spline" stroke="#000" fill="none" d=""  />
 
-<defs>
-<marker id="triangle" preserveAspectRatio="xMinYMin meet"
-  viewBox="0 0 100 100" refX="50" refY="50"
-  markerUnits="userSpaceOnUse"
-  stroke="#f00"
-  fill="#f00"
-  stroke-linecap="round"
-  stroke-width="10"
-  stroke-linejoin="bevel"
-  markerWidth="40" markerHeight="30"
-  orient="auto">
-  <path d="M 0 0 L 100 50 L 0 100 L 30 50 z" />
-</marker>
-</defs>
-
-<rect id="selrect" style="display:none; stroke:#999; stroke-width:1; stroke-dasharray:10,5; fill:none;" />
-<path  id="spline" stroke="#000" fill="none" d=""  />
-
-<!-- <path stroke="#000" stroke-width="2" fill="none" d="M20,380 R58,342 100,342 100,300 140,250 190,210 220,197 250,184 280,155 310,260 404,20"/> -->
-
-</svg>
+  </svg>
+</div>
+  <script type="text/javascript" src='undoredo.js'></script>
 
   <script type="text/javascript" src="zepto.js"></script>
   <script type="text/javascript" src="catmullrom2bezier.js"></script>
@@ -87,6 +87,13 @@
 
     function calcDist (a,b) {
       return Math.sqrt( Math.pow(a[0]-b[0], 2) + Math.pow(a[1]-b[1], 2) );
+    }
+
+    function makeShape(tag, attrs) {
+        var el= document.createElementNS('http://www.w3.org/2000/svg', tag);
+        for (var k in attrs)
+            el.setAttribute(k, attrs[k]);
+        return el;
     }
 
     function  hideDot (hide) {
@@ -222,20 +229,13 @@
 	      var L = rPath.length;
 
 	      if(L && calcDist(rPath[L-1], [x, y])<DOT_DISTANCE )return;
-	      var el = document.createElementNS(svgns, "circle");
-	      el.setAttribute( "class", 'hint' );
-	      el.setAttribute( "cx", x );
-	      el.setAttribute( "cy", y );
-	      el.setAttribute( "r", "3" );
-	      el.setAttribute( "fill", "red" );
+        var el = makeShape("circle", { class:"hint", cx:x, cy:y, r:3, fill:"red" });
 	      document.querySelector('svg.canvas').appendChild( el );
 
 	      rPath.push( [x, y] );
 
 
       }
-
-
 
     }
 
@@ -305,24 +305,28 @@
 	        d+=" M" + p[0] + "," + p[1];
 	        d+=" L" + startP[0] + "," + startP[1];
 	      } else {
+            d += calcInterpo(rPath, 10);
 	          //drawing circle Curve way.
-	          d += calcInterpo(rPath, 10);
 	          //rPath = rPath.concat( _interpo.slice(1) );
 	      }
 
         d = parsePath( d,true, 10 );
       if( !/undefined|NaN/.test(d) )
       try{
-          hisAction.push('Path', 'add', d);
+          var path = createPath();
+          path.setAttribute("d", d );
 		  }catch(e){
 
 		  }
-	      //path.setAttribute("marker-end", "url(#triangle)" );
-	      document.querySelectorAll('circle.hint').forEach(function  (v) {
-	        v.parentNode.removeChild(v);
-	      });
-	  }
+	    //path.setAttribute("marker-end", "url(#triangle)" );
 
+      document.querySelectorAll('circle.hint').forEach(function  (v) {
+        v.parentNode.removeChild(v);
+      });
+ 
+       svgHistory.update();
+
+    }
 
     }
 
@@ -337,83 +341,66 @@
             (evt.metaKey ? 8 : 0);
 
       if (cmd === 0) { // no control key pressed at all.
+        //console.log(evt.keyCode);
         switch (evt.keyCode) {
           case 8:  //delete key : Delete the shape
             var el = $('.shape.hl');
             if( el.length ){
               el.remove();
+              svgHistory.update();
             }
         }
       }
+
+    if (cmd === 1 || cmd === 8) {
+      switch (evt.keyCode) {
+        case 90:
+          OPHistory.undo();
+          break;
+      }
+    }
+
+    if (cmd === 5 || cmd === 12) {
+      switch (evt.keyCode) {
+        case 90:
+          OPHistory.redo();
+          break;
+      }
+    }
 
     }
 
 
-    var hisAction = new function () {
-      var hisList = [];
-      var hisPos = -1;
-      this.push = function( target, action ){
-        if( !arguments.length ) return;
+  var svgHistory = new function(html) {
+    var self = this;
+    this.html = $('#svgCon').html();
 
-        var _id = +new Date()+Math.random();
-        var _options = Array.prototype.slice.call(arguments, 2);
-        // 4 Global args: action[string], target, _id[decimal], _options[array]
-        var his = {action:action, target:target, options:_options, id:_id}
+    //here is an action we cant to be able to undo/redo
+    this.update = function() {
 
-        hisList.splice(++hisPos);
-        hisList.push(his);
-        
-        eval(his.target)[his.action].do(his);
+        //this variable will be saved in the undo function's closure
+        var oldHtml = self.html;
+        var newHtml = $('#svgCon').html();
 
-      };
+        //self function sets up the action and performs it
+        OPHistory.do( 
+            //the 'do' or 'redo' function
+            function() {
+              self.html = newHtml;
+              $('#svgCon').html(newHtml);
+            }, 
 
-      this.undo = function  () {
-        if(hisPos < 0)return;
-        var his = hisList[hisPos];
-        hisPos--;
-        eval(his.target)[his.action].undo(his);
+            //the 'undo' function
+            function() {
+              self.html = oldHtml;
+                $('#svgCon').html(oldHtml);
+        });
       }
-
-      this.redo = function  () {
-        if(hisPos+1>= hisList.length)return;
-        hisPos++;
-        var his = hisList[hisPos];
-        eval(his.target)[his.action].do(his);
-      }
-
-      var Path = {
-        //each operation is object[2], [0]is redo, [1]is undo
-        add:
-        {
-          do: function  (his) {
-            var d = his.options[0];
-            this.path = createPath();
-            this.path.setAttribute("d", d );
-            this.path.setAttribute("data-hisID", his.id );
-          },
-          undo: function  (his) {
-            $('path').filter(function(){ return this.dataset.hisID==his.id }).remove();
-          }
-        },
-        remove:{
-          do: function (his) {
-            var el = $('.shape.hl');
-            if( el.length ){
-              el.hide();
-            }
-          }
-        }
-      }
-
-    };
+  }
 
 
     function createPath () {
-      var el = document.createElementNS(svgns, "path");
-      el.setAttribute( "class", 'shape' );
-      el.setAttribute( "stroke", "#F00" );
-      el.setAttribute( "stroke-width", '2' );
-      el.setAttribute( "fill", "none" );
+      var el = makeShape("path", { "class":'shape', stroke:'#f00', "stroke-width":2, fill:"none" });
       document.querySelector('svg.canvas').appendChild( el );
       path = el;
       return el;
