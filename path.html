@@ -197,11 +197,12 @@
 
       }
 
-
-      if(dragging ){
+      if(!e.shiftKey)
+      if( dragging ){
 
 	      	$('.shape.hl').each(function  (i,v) {
-            var oldTrans = $(v).attr('data-oldTrans').split(',');
+            var oldTrans = $(v).attr('data-oldTrans');
+            oldTrans= !oldTrans?[0,0]:oldTrans.split(',');
             var tx = dx+ ~~oldTrans[0];
             var ty = dy+ ~~oldTrans[1];
             $(v).attr("transform", "translate("+ tx +","+ ty +")");
@@ -256,7 +257,7 @@
       }
 
     	// just click, no motion
-    	if( e.shiftKey && !dragging && !drawing) {
+    	if( e.shiftKey && !dragging && !drawing && $('.shape.hl').length==0 ) {
     		if( $(evt.target).hasClass('shape') ) addSelectionList(evt.target);
     		return;
     	}
@@ -312,8 +313,7 @@
         d = parsePath( d,true, 10 );
       if( !/undefined|NaN/.test(d) )
       try{
-          var path = createPath();
-		      path.setAttribute("d", d );
+          hisAction.push('Path', 'add', d);
 		  }catch(e){
 
 		  }
@@ -349,6 +349,64 @@
     }
 
 
+    var hisAction = new function () {
+      var hisList = [];
+      var hisPos = -1;
+      this.push = function( target, action ){
+        if( !arguments.length ) return;
+
+        var _id = +new Date()+Math.random();
+        var _options = Array.prototype.slice.call(arguments, 2);
+        // 4 Global args: action[string], target, _id[decimal], _options[array]
+        var his = {action:action, target:target, options:_options, id:_id}
+
+        hisList.splice(++hisPos);
+        hisList.push(his);
+        
+        eval(his.target)[his.action].do(his);
+
+      };
+
+      this.undo = function  () {
+        if(hisPos < 0)return;
+        var his = hisList[hisPos];
+        hisPos--;
+        eval(his.target)[his.action].undo(his);
+      }
+
+      this.redo = function  () {
+        if(hisPos+1>= hisList.length)return;
+        hisPos++;
+        var his = hisList[hisPos];
+        eval(his.target)[his.action].do(his);
+      }
+
+      var Path = {
+        //each operation is object[2], [0]is redo, [1]is undo
+        add:
+        {
+          do: function  (his) {
+            var d = his.options[0];
+            this.path = createPath();
+            this.path.setAttribute("d", d );
+            this.path.setAttribute("data-hisID", his.id );
+          },
+          undo: function  (his) {
+            $('path').filter(function(){ return this.dataset.hisID==his.id }).remove();
+          }
+        },
+        remove:{
+          do: function (his) {
+            var el = $('.shape.hl');
+            if( el.length ){
+              el.hide();
+            }
+          }
+        }
+      }
+
+    };
+
 
     function createPath () {
       var el = document.createElementNS(svgns, "path");
@@ -362,9 +420,10 @@
     }
 
     function addSelectionList (el, isNew) {
+      if( $(el).hasClass('hl') )return;
       $(el).addClass('hl');
       $(el).attr('data-oldTrans', getTranslateXY(el).join(',') );
-      if(isNew) $(el).attr('newHL', 1);
+      if(isNew) $(el).get(0).setAttribute('newHL', 1);
     }
 
     function getTranslateXY(obj)
