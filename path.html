@@ -20,8 +20,8 @@
   	stroke-dasharray: 20,5,5,5;
     cursor: -webkit-grabbing;
   }
-  .selectState{
-      cursor: crosshair;
+  .selectState, .selectState .hl{
+      cursor: crosshair!important;
   }
 
 
@@ -116,7 +116,7 @@
       }
 
    	  // long click to trigger dragging mode && selecting mode
-
+      if(!selecting)
    	  downTimer = window.setTimeout(function() {
         //we are longclick on shape
         if( isShape ){
@@ -170,7 +170,11 @@
 
       if( dist>10 ) clearTimeout(downTimer);
 
-      if(selecting){
+      if(e.shiftKey && ( !isTouch? e.which>0 : e.touches.length>0 ) ){
+        selecting = true;
+      } 
+
+      if(selecting && dist>10){
 
         var svg=document.querySelector('svg.canvas');
         var r = svg.createSVGRect();
@@ -180,13 +184,14 @@
         r.x = dx>0? downX : downX+dx;
         r.y = dy>0? downY : downY+dy;
 
+         $('svg.canvas').addClass('selectState');
         $('#selrect').show().attr({x:r.x, y:r.y, width:r.width, height:r.height});
 
-        $('.shape').removeClass('hl');
+        $('.shape').filter(function(i,v){ return $(this).attr('newHL') }).removeClass('hl');
 
         var els = svg.getIntersectionList(r, null);
         els.forEach(function(v){
-          addSelectionList(v);
+          if( $(v).hasClass('shape') ) addSelectionList(v, true);
         });
         return;
 
@@ -208,13 +213,6 @@
 
 	      if( !drawing && dist >DRAW_TOLERANCE ){
 	    	  drawing = true;
-		      var el = document.createElementNS(svgns, "path");
-		      el.setAttribute( "class", 'shape' );
-		      el.setAttribute( "stroke", "#F00" );
-		      el.setAttribute( "stroke-width", '2' );
-		      el.setAttribute( "fill", "none" );
-		      document.querySelector('svg.canvas').appendChild( el );
-		      path = el;
 		      rPath=[];
 	      }
 
@@ -253,11 +251,12 @@
         selecting = false;
         $('#selrect').hide();
         $('svg.canvas').removeClass('selectState');
+        $('.shape').removeAttr('newHL');
         return;
       }
 
     	// just click, no motion
-    	if( !e.shiftKey && !dragging && !drawing) {
+    	if( e.shiftKey && !dragging && !drawing) {
     		if( $(evt.target).hasClass('shape') ) addSelectionList(evt.target);
     		return;
     	}
@@ -310,8 +309,11 @@
 	          //rPath = rPath.concat( _interpo.slice(1) );
 	      }
 
-	      try{
-		      path.setAttribute("d", parsePath( d,true, 10 ) );
+        d = parsePath( d,true, 10 );
+      if( !/undefined|NaN/.test(d) )
+      try{
+          var path = createPath();
+		      path.setAttribute("d", d );
 		  }catch(e){
 
 		  }
@@ -346,9 +348,23 @@
 
     }
 
-    function addSelectionList (el) {
+
+
+    function createPath () {
+      var el = document.createElementNS(svgns, "path");
+      el.setAttribute( "class", 'shape' );
+      el.setAttribute( "stroke", "#F00" );
+      el.setAttribute( "stroke-width", '2' );
+      el.setAttribute( "fill", "none" );
+      document.querySelector('svg.canvas').appendChild( el );
+      path = el;
+      return el;
+    }
+
+    function addSelectionList (el, isNew) {
       $(el).addClass('hl');
       $(el).attr('data-oldTrans', getTranslateXY(el).join(',') );
+      if(isNew) $(el).attr('newHL', 1);
     }
 
     function getTranslateXY(obj)
