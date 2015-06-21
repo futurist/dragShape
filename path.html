@@ -36,6 +36,10 @@
     left: 0;
     height: 30px;
   }
+  button{
+    height:44px;
+    width:144px;
+  }
 
 </style>
 </head>
@@ -66,24 +70,24 @@
 
 <div id="drawTool">
 <div class="maintool">
-  <button onclick="setTool('curve')">曲线</button>
-  <button onclick="setTool('line')">直线</button>
-  <button onclick="setTool('rect')">矩形</button>
-  <button onclick="setTool('circle')">圆形</button>
-  <button onclick="setTool('text')">文字</button>
-  <button onclick="OPHistory.redo()">Redo</button>
-  <button onclick="OPHistory.undo()">Undo</button>
+  <button class="btnCurve" data-onclick="setTool('curve')">曲线</button>
+  <button class="btnLine" data-onclick="setTool('line')">直线</button>
+  <button class="btnRect" data-onclick="setTool('rect')">矩形</button>
+  <button class="btnCircle" data-onclick="setTool('circle')">圆形</button>
+  <button class="btnText" data-onclick="setTool('text')">文字</button>
+  <button class="btnRedo" data-onclick="OPHistory.redo()">Redo</button>
+  <button class="btnUndo" data-onclick="OPHistory.undo()">Undo</button>
 </div>
 
 <div class="subtool_curve">
-  <button onclick='setTool("curve", {"arrow": 1}, true)'>前箭头</button>
-  <button onclick='setTool("curve", {"arrow": 2}, true)'>后箭头</button>
-  <button onclick='setTool("curve", {"autoClose": 1}, true)'>直线封闭</button>
-  <button onclick='setTool("curve", {"autoClose": 2}, true)'>曲线封闭</button>
-  <button onclick='setTool("curve", {"stroke-width": 2})'>小</button>
-  <button onclick='setTool("curve", {"stroke-width": 4})'>中</button>
-  <button onclick='setTool("curve", {"stroke-width": 6})'>大</button>
-  <button onclick='setTool("curve", {"stroke": "#f0f"})'>颜色</button>
+  <button class="btnArrow1" data-onclick='setTool("curve", {"arrow": 1}, true)'>前箭头</button>
+  <button class="btnArrow2" data-onclick='setTool("curve", {"arrow": 2}, true)'>后箭头</button>
+  <button class="btnAutoClose1" data-onclick='setTool("curve", {"autoClose": 1}, true)'>直线封闭</button>
+  <button class="btnAutoClose2" data-onclick='setTool("curve", {"autoClose": 2}, true)'>曲线封闭</button>
+  <button class="btnStrokeWidth2" data-onclick='setTool("curve", {"stroke-width": 2})'>小</button>
+  <button class="btnStrokeWidth4" data-onclick='setTool("curve", {"stroke-width": 4})'>中</button>
+  <button class="btnStrokeWidth6" data-onclick='setTool("curve", {"stroke-width": 6})'>大</button>
+  <button class="btnStroke" data-onclick='setTool("curve", {"stroke": "#f0f"})'>颜色</button>
 </div>
 
 </div>
@@ -136,18 +140,22 @@
         shapeA = $('[data-id="'+ curShapeID +'"]').toArray();
       }
 
+      var isDirty = false;
       shapeA.forEach(function  (v) {
-        var newOptions = v.dataset.options ? JSON.parse( v.dataset.options ) : ToolSet[tool];
+        var oldOptions = v.dataset.options;
+        var newOptions = oldOptions ? JSON.parse( oldOptions ) : ToolSet[tool];
         if(isToggle){ 
           if(options.arrow) newOptions.arrow ^= options.arrow;
           if(options.autoClose) newOptions.autoClose ^= options.autoClose;
         } else {
           newOptions= $.extend(newOptions, options );
         } 
+        if( oldOptions == JSON.stringify(newOptions) ) return true;
         var rPath = JSON.parse(v.dataset.path);
-        console.log(v, newOptions);
         createPath(rPath, v, newOptions);
+        isDirty = true;
       });
+      if(isDirty) svgHistory.update();
     }
 
 
@@ -156,8 +164,10 @@
     document.documentElement.style.webkitUserSelect='none';
     document.documentElement.style.webkitTouchCallout='none';
 
-    $('button').on('click', function  (e) {
+    $('button').on(downE, function  (e) {
       e.stopPropagation();
+      var evt = /touch/.test(e.type) ? e.touches[0] : e;
+      eval(evt.target.dataset.onclick);
     } )
 
     window.addEventListener(moveE, moveFunc )
