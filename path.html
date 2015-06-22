@@ -17,8 +17,7 @@
   	pointer-events: visible;
   }
   .hl{
-  	stroke-width:6px;
-  	stroke-dasharray: 20,5,5,5;
+  	stroke-dasharray: 20,15;
     cursor: -webkit-grabbing;
   }
   .selectState, .selectState .hl{
@@ -26,19 +25,21 @@
   }
   #drawTool{
     position: fixed;
-    top: 0;
+    bottom: 0;
     left: 0;
     height: 30px;
+    width: 100%;
+    overflow: visible;
   }
-  #drawTool2{
-    position: fixed;
-      top: 30px;
+  .subtool{
+    position: absolute;
+    bottom: 50px;
     left: 0;
     height: 30px;
   }
   button{
     height:44px;
-    width:144px;
+    width:88px;
   }
 
 </style>
@@ -70,7 +71,7 @@
 
 <div id="drawTool">
 <div class="maintool">
-  <button class="btnCurve" data-onclick="setTool('curve')">曲线</button>
+  <button class="btnCurve" data-onclick="setTool('curve')">绘制</button>
   <button class="btnLine" data-onclick="setTool('line')">直线</button>
   <button class="btnRect" data-onclick="setTool('rect')">矩形</button>
   <button class="btnCircle" data-onclick="setTool('circle')">圆形</button>
@@ -79,7 +80,7 @@
   <button class="btnUndo" data-onclick="OPHistory.undo()">Undo</button>
 </div>
 
-<div class="subtool_curve">
+<div class="subtool subtool_curve">
   <button class="btnArrow1" data-onclick='setTool("curve", {"arrow": 1}, true)'>前箭头</button>
   <button class="btnArrow2" data-onclick='setTool("curve", {"arrow": 2}, true)'>后箭头</button>
   <button class="btnAutoClose1" data-onclick='setTool("curve", {"autoClose": 1}, true)'>直线封闭</button>
@@ -88,6 +89,15 @@
   <button class="btnStrokeWidth4" data-onclick='setTool("curve", {"stroke-width": 4})'>中</button>
   <button class="btnStrokeWidth6" data-onclick='setTool("curve", {"stroke-width": 6})'>大</button>
   <button class="btnStroke" data-onclick='setTool("curve", {"stroke": "#f0f"})'>颜色</button>
+</div>
+
+<div class="subtool subtool_line">
+  <button class="btnArrow1" data-onclick='setTool("line", {"arrow": 1}, true)'>前箭头</button>
+  <button class="btnArrow2" data-onclick='setTool("line", {"arrow": 2}, true)'>后箭头</button>
+  <button class="btnStrokeWidth2" data-onclick='setTool("line", {"stroke-width": 2})'>小</button>
+  <button class="btnStrokeWidth4" data-onclick='setTool("line", {"stroke-width": 4})'>中</button>
+  <button class="btnStrokeWidth6" data-onclick='setTool("line", {"stroke-width": 6})'>大</button>
+  <button class="btnStroke" data-onclick='setTool("line", {"stroke": "#f0f"})'>颜色</button>
 </div>
 
 </div>
@@ -113,6 +123,7 @@
     var dragging = false;
     var selecting = false;
     var selectedList = [];
+    var curTool = null;
 
     var isTouch = ('ontouchstart' in window) || ('DocumentTouch' in window && document instanceof DocumentTouch);
     var downE = isTouch? 'touchstart' :'mousedown';
@@ -126,12 +137,23 @@
         "stroke":"#f00",
         "autoClose":0,
         "arrow":0,
+      },
+      line:{
+        "stroke-width": 2,
+        "stroke":"#f00",
+        "autoClose":0,
+        "arrow":0,
       }
     }
 
     function setTool (tool, options, isToggle) {
       
       if(!options) options={};
+      
+      curTool = tool;
+
+      $('#drawTool .subtool').hide();
+      $('#drawTool .subtool_'+tool).show();
 
       var shapeA = [];
       if( $('.shape.hl').size() ){
@@ -145,19 +167,35 @@
         var oldOptions = v.dataset.options;
         var newOptions = oldOptions ? JSON.parse( oldOptions ) : ToolSet[tool];
         if(isToggle){ 
-          if(options.arrow) newOptions.arrow ^= options.arrow;
-          if(options.autoClose) newOptions.autoClose ^= options.autoClose;
+          if(options.arrow) newOptions.arrow ^= options.arrow;  //bit flip
+          if(options.autoClose){
+            //for autoclose, we clear all other bit and flip only this bit
+            newOptions.autoClose = bit_check(newOptions.autoClose, options.autoClose)?0:options.autoClose;
+          } 
         } else {
           newOptions= $.extend(newOptions, options );
         } 
         if( oldOptions == JSON.stringify(newOptions) ) return true;
-        var rPath = JSON.parse(v.dataset.path);
-        createPath(rPath, v, newOptions);
+
+        if( tool!=v.dataset.tool ) return true;
+        if(tool=='curve'){
+          var rPath = JSON.parse(v.dataset.path);
+          createPath(rPath, v, newOptions);
+        }
+
+        if(tool=='line'){
+
+          var startPoint = JSON.parse(v.dataset.startpoint);
+          var endPoint = JSON.parse(v.dataset.endpoint);
+          createLine(startPoint, endPoint, v, newOptions);
+        }
+
         isDirty = true;
       });
       if(isDirty) svgHistory.update();
     }
 
+    setTool('curve');
 
     NodeList.prototype.forEach = Array.prototype.forEach;
 
@@ -199,7 +237,7 @@
       e.preventDefault();
    	  var evt = /touch/.test(e.type) ? e.touches[0] : e;
 
-      if( /button/i.test(evt.target.tagName) ) return;
+      if( ! $(evt.target).closest('.canvas').size() ) return;
 
    	  var x = evt.pageX;
    	  var y = evt.pageY;
@@ -260,7 +298,7 @@
       e.preventDefault();
       var evt = /touch/.test(e.type) ? e.touches[0] : e;
 
-      if( /button/i.test(evt.target.tagName) ) return;
+      //if( ! $(evt.target).closest('.canvas').size() ) return;
 
       var x = evt.pageX;
       var y = evt.pageY;
@@ -314,20 +352,38 @@
       }else{
 
 
-	      if( !drawing && dist >DRAW_TOLERANCE ){
-	    	  drawing = true;
-		      rPath=[];
-	      }
+        if(curTool=='curve'){
 
-	      if(!drawing)return;
+  	      if( !drawing && dist >DRAW_TOLERANCE ){
+  	    	  drawing = true;
+  		      rPath=[];
+  	      }
 
-	      var L = rPath.length;
+  	      if(!drawing)return;
 
-	      if(L && calcDist(rPath[L-1], [x, y])<DOT_DISTANCE )return;
-        var el = makeShape("circle", { class:"hint", cx:x, cy:y, r:3, fill:"red" });
-	      document.querySelector('svg.canvas').appendChild( el );
+  	      var L = rPath.length;
 
-	      rPath.push( [x, y] );
+  	      if(L && calcDist(rPath[L-1], [x, y])<DOT_DISTANCE )return;
+          var el = makeShape("circle", { class:"hint", cx:x, cy:y, r:3, fill:"red" });
+  	      document.querySelector('svg.canvas').appendChild( el );
+
+  	      rPath.push( [x, y] );
+
+        }
+
+        if(curTool=='line'){
+
+          if( !drawing && dist >DRAW_TOLERANCE ){
+            drawing = true;
+            createLine([downX, downY], [x,y]);
+          }
+          if(!drawing)return;
+
+          var line = document.querySelector('[data-id="'+ curShapeID +'"]');
+          createLine([downX, downY], [x,y], line);
+          
+
+        }
 
 
       }
@@ -340,7 +396,7 @@
     	e.preventDefault();
     	var evt = /touch/.test(e.type) ? e.changedTouches[0] : e;
 
-      if( /button/i.test(evt.target.tagName) ) return;
+      if( ! $(evt.target).closest('.canvas').size() ) return;
 
     	downX=downY=null;
 
@@ -374,12 +430,23 @@
 	      drawing = false;
 
 
-        createPath(rPath);
+        if(curTool=='curve'){
 
-        document.querySelectorAll('circle.hint').forEach(function  (v) {
-          v.parentNode.removeChild(v);
-        });
+
+          createPath(rPath);
+
+          document.querySelectorAll('circle.hint').forEach(function  (v) {
+            v.parentNode.removeChild(v);
+          });
+
+        }
    
+        if(curTool=='line'){
+
+
+
+        }
+
          svgHistory.update();
 
       }
@@ -454,6 +521,34 @@
       }
   }
 
+    function createLine (startPoint, endPoint, path, options) {
+
+      if(!options) options = ToolSet.curve;
+
+      if(!path){
+        path = makeShape("path", { "class":'shape line', fill:"none" });
+        curShapeID = +new Date+Math.random();
+        document.querySelector('svg.canvas').appendChild( path );
+        path.setAttribute("data-id", curShapeID );
+      }
+      var d = 'M'+startPoint.join(',')+' '+endPoint.join(',');
+
+      var attr = {"d":d, "stroke-linecap":"round", "stroke-linejoin":"miter", "stroke-miterlimit":"4", stroke:options['stroke']||'#f00', "stroke-width":options['stroke-width']||2, }
+      
+      for(var i in attr){
+        path.setAttribute(i, attr[i]);
+      }
+
+      path.setAttribute("marker-start", bit_check(options.arrow, 0x1) ? "url(#triangle)" : "none" );
+      path.setAttribute("marker-end", bit_check(options.arrow, 0x2) ? "url(#triangle)" : "none" );
+
+      path.setAttribute("data-tool", 'line' );
+      path.setAttribute("data-startpoint", JSON.stringify( startPoint ) );
+      path.setAttribute("data-endpoint", JSON.stringify( endPoint ) );
+      path.setAttribute("data-options", JSON.stringify( options ) );
+
+
+    }
 
     function createPath (rPath, path, options) {
 
@@ -499,7 +594,7 @@
         if( !/undefined|NaN/.test(d) ){
             
             if(!path){
-              path = makeShape("path", { "class":'shape', fill:"none" });
+              path = makeShape("path", { "class":'shape curve', fill:"none" });
               curShapeID = +new Date+Math.random();
               document.querySelector('svg.canvas').appendChild( path );
               path.setAttribute("data-id", curShapeID );
@@ -512,20 +607,13 @@
               path.setAttribute(i, attr[i]);
             }
 
+            path.setAttribute("data-tool", 'curve' );
             path.setAttribute("data-options", JSON.stringify( options ) );
 
             //arrow: 0x0 no arrow, 0x1: start arrow, 0x2: end arrow
-            if( (options.arrow & 0x1) != 0 ){
-              path.setAttribute("marker-start", "url(#triangle)" );
-            } else{
-              path.setAttribute("marker-start", "none" );
-            }
+            path.setAttribute("marker-start", bit_check(options.arrow, 0x1) ? "url(#triangle)" : "none" );
+            path.setAttribute("marker-end", bit_check(options.arrow, 0x2) ? "url(#triangle)" : "none" );
 
-            if( (options.arrow & 0x2) != 0 ){
-              path.setAttribute("marker-end", "url(#triangle)" );
-            } else{              
-              path.setAttribute("marker-end", "none" );
-            }
 
         } else {
 
@@ -583,6 +671,11 @@
       return d;
       //end of interpo
     }
+
+    function bit_set(a,b) { return a |= (b)}
+    function bit_clear(a,b) { return a &= ~(b)}
+    function bit_flip(a,b) { return a ^= (b)}
+    function bit_check(a,b) { return (a & (b)) !=0 }
 
 
   </script>
