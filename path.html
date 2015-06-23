@@ -85,18 +85,17 @@
   <button class="btnArrow2" data-onclick='setTool("curve", {"arrow": 2}, true)'>后箭头</button>
   <button class="btnAutoClose1" data-onclick='setTool("curve", {"autoClose": 1}, true)'>直线封闭</button>
   <button class="btnAutoClose2" data-onclick='setTool("curve", {"autoClose": 2}, true)'>曲线封闭</button>
-  <button class="btnStrokeWidth2" data-onclick='setTool("curve", {"stroke-width": 2})'>小</button>
-  <button class="btnStrokeWidth4" data-onclick='setTool("curve", {"stroke-width": 4})'>中</button>
-  <button class="btnStrokeWidth6" data-onclick='setTool("curve", {"stroke-width": 6})'>大</button>
+  <button class="btnStrokeWidth2" data-onclick='setTool("curve", {"stroke-width": "-"})'>小</button>
+  <button class="btnStrokeWidth6" data-onclick='setTool("curve", {"stroke-width": "+"})'>大</button>
   <button class="btnStroke" data-onclick='setTool("curve", {"stroke": "#f0f"})'>颜色</button>
 </div>
 
 <div class="subtool subtool_line">
   <button class="btnArrow1" data-onclick='setTool("line", {"arrow": 1}, true)'>前箭头</button>
   <button class="btnArrow2" data-onclick='setTool("line", {"arrow": 2}, true)'>后箭头</button>
-  <button class="btnStrokeWidth2" data-onclick='setTool("line", {"stroke-width": 2})'>小</button>
-  <button class="btnStrokeWidth4" data-onclick='setTool("line", {"stroke-width": 4})'>中</button>
-  <button class="btnStrokeWidth6" data-onclick='setTool("line", {"stroke-width": 6})'>大</button>
+  <button class="btnArrow2" data-onclick='setTool("line", {"highLight": 1}, true)'>荧光笔</button>
+  <button class="btnStrokeWidth2" data-onclick='setTool("line", {"stroke-width": "-"})'>小</button>
+  <button class="btnStrokeWidth6" data-onclick='setTool("line", {"stroke-width": "+"})'>大</button>
   <button class="btnStroke" data-onclick='setTool("line", {"stroke": "#f0f"})'>颜色</button>
 </div>
 
@@ -142,8 +141,36 @@
         "stroke-width": 2,
         "stroke":"#f00",
         "autoClose":0,
+        "highLight":false,
         "arrow":0,
-      }
+      },
+      rect:{
+        "stroke-width": 2,
+        "stroke":"#f00",
+      },
+    }
+
+
+    function getOptions (oldOptions, options, isToggle) {
+      // parameter pass by ref
+      if(isToggle){ 
+        if(options.arrow) oldOptions.arrow ^= options.arrow;  //bit flip
+        if(options.highLight) oldOptions.highLight ^= options.highLight;  //bit flip
+        if(options.autoClose){
+          //for autoclose, we clear all other bit and flip only this bit
+          oldOptions.autoClose = bit_check(oldOptions.autoClose, options.autoClose)?0:options.autoClose;
+        } 
+      } else {
+        var swidth = options['stroke-width'];
+        delete options['stroke-width'];
+        if(swidth=='-') oldOptions['stroke-width'] -= 2;
+        if(swidth=='+') oldOptions['stroke-width'] += 2;
+        oldOptions= $.extend(oldOptions, options );
+      } 
+
+      console.log(111,oldOptions);
+      return true;
+      
     }
 
     function setTool (tool, options, isToggle) {
@@ -159,23 +186,23 @@
       if( $('.shape.hl').size() ){
         shapeA = $('.shape.hl').toArray();
       }else if(curShapeID){
-        shapeA = $('[data-id="'+ curShapeID +'"]').toArray();
+        getOptions(ToolSet[tool], options, isToggle );
+        /*
+          prevent remember last shape
+        */
+        //shapeA = $('[data-id="'+ curShapeID +'"]').toArray();
       }
 
       var isDirty = false;
       shapeA.forEach(function  (v) {
         var oldOptions = v.dataset.options;
         var newOptions = oldOptions ? JSON.parse( oldOptions ) : ToolSet[tool];
-        if(isToggle){ 
-          if(options.arrow) newOptions.arrow ^= options.arrow;  //bit flip
-          if(options.autoClose){
-            //for autoclose, we clear all other bit and flip only this bit
-            newOptions.autoClose = bit_check(newOptions.autoClose, options.autoClose)?0:options.autoClose;
-          } 
-        } else {
-          newOptions= $.extend(newOptions, options );
-        } 
+
+        getOptions(newOptions, options, isToggle );
+
+        console.log(newOptions);
         if( oldOptions == JSON.stringify(newOptions) ) return true;
+
 
         if( tool!=v.dataset.tool ) return true;
         if(tool=='curve'){
@@ -188,6 +215,7 @@
           var startPoint = JSON.parse(v.dataset.startpoint);
           var endPoint = JSON.parse(v.dataset.endpoint);
           createLine(startPoint, endPoint, v, newOptions);
+
         }
 
         isDirty = true;
@@ -267,9 +295,9 @@
           downTimer = window.setTimeout(function() {
             selecting=true;
             $('svg.canvas').addClass('selectState');
-          },300);
+          },100);
         }
-   	  }, 100);
+   	  }, 200);
 
 
    	  if( $(evt.target).hasClass('hl') ){
@@ -523,7 +551,7 @@
 
     function createLine (startPoint, endPoint, path, options) {
 
-      if(!options) options = ToolSet.curve;
+      if(!options) options = ToolSet['line'];
 
       if(!path){
         path = makeShape("path", { "class":'shape line', fill:"none" });
@@ -533,7 +561,10 @@
       }
       var d = 'M'+startPoint.join(',')+' '+endPoint.join(',');
 
-      var attr = {"d":d, "stroke-linecap":"round", "stroke-linejoin":"miter", "stroke-miterlimit":"4", stroke:options['stroke']||'#f00', "stroke-width":options['stroke-width']||2, }
+      var swidth = options['stroke-width']||2;
+      var highlight = options.highLight;
+
+      var attr = {"d":d, "stroke-linecap":"round", "stroke-linejoin":"miter", "stroke-miterlimit":"4", stroke:options['stroke']||'#f00', "stroke-width": highlight ? swidth*4 : swidth , "opacity": highlight?0.5:1 }
       
       for(var i in attr){
         path.setAttribute(i, attr[i]);
@@ -552,7 +583,7 @@
 
     function createPath (rPath, path, options) {
 
-        if(!options) options = ToolSet.curve;
+        if(!options) options = ToolSet['curve'];
 
         var L = rPath.length;
 
