@@ -16,7 +16,7 @@
   path{
   	pointer-events: visible;
   }
-  .hl{
+  [data-hl]{
   	stroke-dasharray: 20,15;
     cursor: -webkit-grabbing;
   }
@@ -164,6 +164,11 @@
       circle:{
         "stroke-width": 2,
         "stroke":"#f00",
+      },
+      text:{
+        "font-family": "Arial",
+        "font-size": 18,
+        "fill":"red",
       }
     }
 
@@ -210,8 +215,8 @@
       $('#drawTool .subtool_'+tool).show();
 
       var shapeA = [];
-      if( $('.shape.hl').size() ){
-        shapeA = $('.shape.hl').toArray();
+      if( $('[data-hl]').size() ){
+        shapeA = $('[data-hl]').toArray();
       }else {
         getOptions(ToolSet[tool], options );
 
@@ -331,8 +336,9 @@
 
       
 
-      if(e.shiftKey && isShape && $('.shape.hl').length ) {
-        $(evt.target).toggleClass('hl');
+      if(e.shiftKey && isShape && $('[data-hl]').length ) {
+        var d = $(evt.target).data('hl');
+        $(evt.target).data('hl', d?null:1);
         return;
       }
 
@@ -351,7 +357,7 @@
         if( isShape ){
      	  	addSelectionList(evt.target);
      	  	dragging = true;
-          $('.shape.hl').each(function  (i,v) {
+          $('[data-hl]').each(function  (i,v) {
             $(v).attr('data-oldTrans', getTranslateXY(v).join(',') );
           });
         }else{
@@ -364,20 +370,20 @@
    	  }, 200);
 
 
-   	  if( $(evt.target).hasClass('hl') ){
+   	  if( $(evt.target).data('hl') ){
 
    	  	dragging = true;
-   	  	$('.shape.hl').each(function  (i,v) {
+   	  	$('[data-hl]').each(function  (i,v) {
           $(v).attr('data-oldTrans', getTranslateXY(v).join(',') );
         });
 
-   	  }else {
+   	  } else {
 
    	  	dragging = false;
 
         if(!e.shiftKey)
    	  	document.querySelectorAll('.shape').forEach(function(v){
-   	  		$(v).removeClass('hl');
+          $(v).data('hl',null);
    	  	});
 
    	  }
@@ -405,7 +411,7 @@
         clearTimeout(downTimer);
       }
 
-      if(e.shiftKey && ( !isTouch? e.which>0 : e.touches.length>0 ) ){
+      if(!drawing && !dragging && $('[data-hl]').size() && e.shiftKey && ( !isTouch? e.which>0 : e.touches.length>0 ) ){
         selecting = true;
       }
 
@@ -422,7 +428,7 @@
          $('svg.canvas').addClass('selectState');
         $('#selrect').show().attr({x:r.x, y:r.y, width:r.width, height:r.height});
 
-        $('.shape').filter(function(i,v){ return $(this).attr('newHL') }).removeClass('hl');
+        $('.shape').filter(function(i,v){ return $(this).attr('newHL') }).data('hl', null);
 
         var els = svg.getIntersectionList(r, null);
         els.forEach(function(v){
@@ -432,10 +438,10 @@
 
       }
 
-      if(!e.shiftKey)
+      //if(!e.shiftKey)
       if( dragging ){
 
-	      	$('.shape.hl').each(function  (i,v) {
+	      	$('[data-hl]').each(function  (i,v) {
             var oldTrans = $(v).attr('data-oldTrans');
             oldTrans= !oldTrans?[0,0]:oldTrans.split(',');
             var tx = dx+ ~~oldTrans[0];
@@ -539,7 +545,7 @@
       }
 
     	// just click, no motion
-    	if( e.shiftKey && !dragging && !drawing && $('.shape.hl').length==0 ) {
+    	if( e.shiftKey && !dragging && !drawing && $('[data-hl]').length==0 ) {
     		if( $(evt.target).hasClass('shape') ) addSelectionList(evt.target);
     		return;
     	}
@@ -593,7 +599,7 @@
         //console.log(evt.keyCode);
         switch (evt.keyCode) {
           case 8:  //delete key : Delete the shape
-            var el = $('.shape.hl');
+            var el = $('[data-hl]');
             if( el.length ){
               el.remove();
               svgHistory.update();
@@ -828,10 +834,23 @@
     }
 
     function addSelectionList (el, isNew) {
-      if( $(el).hasClass('hl') )return;
-      $(el).addClass('hl');
+      if( $(el).data('hl') )return;
+      $(el).data('hl', 1);
       $(el).attr('data-oldTrans', getTranslateXY(el).join(',') );
       if(isNew) $(el).get(0).setAttribute('newHL', 1);
+      updateToolBox();
+    }
+
+    function updateToolBox () {
+      var theTool, maxt=0, tool={};
+      $('[data-hl]').each( function(){ var t= this.dataset.tool; tool[t] = tool[t]?tool[t]+1:1; } );
+      for(var i in tool){
+        if(tool[i]>maxt){
+          maxt = tool[i];
+          theTool = i;
+        }
+      }
+      setTool(theTool);
     }
 
     function getTranslateXY(obj)
