@@ -81,19 +81,19 @@
 </div>
 
 <div class="subtool subtool_curve">
-  <button class="btnArrow1" data-onclick='setTool("curve", {"arrow": 1}, true)'>前箭头</button>
-  <button class="btnArrow2" data-onclick='setTool("curve", {"arrow": 2}, true)'>后箭头</button>
-  <button class="btnAutoClose1" data-onclick='setTool("curve", {"autoClose": 1}, true)'>直线封闭</button>
-  <button class="btnAutoClose2" data-onclick='setTool("curve", {"autoClose": 2}, true)'>曲线封闭</button>
-  <button class="btnStrokeWidth2" data-onclick='setTool("curve", {"stroke-width": "-"})'>小</button>
-  <button class="btnStrokeWidth6" data-onclick='setTool("curve", {"stroke-width": "+"})'>大</button>
-  <button class="btnStroke" data-onclick='setTool("curve", {"stroke": "#f0f"})'>颜色</button>
+  <button class="btnArrow1" data-onclick='setTool("curve", { "toggle":{"arrow": 1} } )'>前箭头</button>
+  <button class="btnArrow2" data-onclick='setTool("curve", { "toggle":{"arrow": 2} } )'>后箭头</button>
+  <button class="btnAutoClose1" data-onclick='setTool("curve", {"toggle": {"autoClose":1} } )'>直线封闭</button>
+  <button class="btnAutoClose2" data-onclick='setTool("curve", {"toggle": {"autoClose":2} } )'>曲线封闭</button>
+  <button class="btnStrokeWidth2" data-onclick='setTool("curve", {"stroke-width": "-"} )'>小</button>
+  <button class="btnStrokeWidth6" data-onclick='setTool("curve", {"stroke-width": "+"} )'>大</button>
+  <button class="btnStroke" data-onclick='setTool("curve", {"stroke": "#f0f"} )'>颜色</button>
 </div>
 
 <div class="subtool subtool_line">
-  <button class="btnArrow1" data-onclick='setTool("line", {"arrow": 1}, true)'>前箭头</button>
-  <button class="btnArrow2" data-onclick='setTool("line", {"arrow": 2}, true)'>后箭头</button>
-  <button class="btnArrow2" data-onclick='setTool("line", {"highLight": 1}, true)'>荧光笔</button>
+  <button class="btnArrow1" data-onclick='setTool("line", {"toggle": {"arrow":1} })'>前箭头</button>
+  <button class="btnArrow2" data-onclick='setTool("line", {"toggle": {"arrow":2} })'>后箭头</button>
+  <button class="btnArrow2" data-onclick='setTool("line", {"toggle": {"highLight":1}, "stroke":"#f0f"})'>荧光笔</button>
   <button class="btnStrokeWidth2" data-onclick='setTool("line", {"stroke-width": "-"})'>小</button>
   <button class="btnStrokeWidth6" data-onclick='setTool("line", {"stroke-width": "+"})'>大</button>
   <button class="btnStroke" data-onclick='setTool("line", {"stroke": "#f0f"})'>颜色</button>
@@ -151,24 +151,34 @@
     }
 
 
-    function getOptions (oldOptions, options, isToggle) {
-      // parameter pass by ref
-      if(isToggle){ 
-        if(options.arrow) oldOptions.arrow ^= options.arrow;  //bit flip
-        if(options.highLight) oldOptions.highLight ^= options.highLight;  //bit flip
-        if(options.autoClose){
+    function getOptions (oldOptions, setOptions) {
+      // oldOptions parameter pass by ref
+
+      //setOptions by value
+      var options = $.extend({}, setOptions);
+
+      var toggle = options.toggle;
+      var set = options.set;
+      var clear = options.clear;
+
+      if( toggle ){ 
+        if(toggle.arrow) oldOptions.arrow ^= toggle.arrow;  //bit flip
+        if(toggle.highLight) oldOptions.highLight ^= toggle.highLight;  //bit flip
+        if(toggle.autoClose){
           //for autoclose, we clear all other bit and flip only this bit
-          oldOptions.autoClose = bit_check(oldOptions.autoClose, options.autoClose)?0:options.autoClose;
-        } 
-      } else {
+          oldOptions.autoClose = bit_check(oldOptions.autoClose, toggle.autoClose)?0:toggle.autoClose;
+        }
+        delete options.toggle;
+      }
+
+      {
         var swidth = options['stroke-width'];
         delete options['stroke-width'];
         if(swidth=='-') oldOptions['stroke-width'] -= 2;
         if(swidth=='+') oldOptions['stroke-width'] += 2;
         oldOptions= $.extend(oldOptions, options );
-      } 
+      }
 
-      console.log(111,oldOptions);
       return true;
       
     }
@@ -185,7 +195,7 @@
       var shapeA = [];
       if( $('.shape.hl').size() ){
         shapeA = $('.shape.hl').toArray();
-      }else if(curShapeID){
+      }else {
         getOptions(ToolSet[tool], options, isToggle );
         /*
           prevent remember last shape
@@ -200,7 +210,6 @@
 
         getOptions(newOptions, options, isToggle );
 
-        console.log(newOptions);
         if( oldOptions == JSON.stringify(newOptions) ) return true;
 
 
@@ -450,6 +459,7 @@
 
     	if(dragging){
     		dragging=false;
+        svgHistory.update();
     	}
 
 	    if(drawing){
