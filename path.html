@@ -99,6 +99,19 @@
   <button class="btnStroke" data-onclick='setTool("line", {"stroke": "#f0f"})'>颜色</button>
 </div>
 
+<div class="subtool subtool_rect">
+  <button class="btnStrokeWidth2" data-onclick='setTool("rect", {"stroke-width": "-"})'>小</button>
+  <button class="btnStrokeWidth6" data-onclick='setTool("rect", {"stroke-width": "+"})'>大</button>
+  <button class="btnStroke" data-onclick='setTool("rect", {"stroke": "#f0f"})'>颜色</button>
+</div>
+
+<div class="subtool subtool_circle">
+  <button class="btnStrokeWidth2" data-onclick='setTool("circle", {"stroke-width": "-"})'>小</button>
+  <button class="btnStrokeWidth6" data-onclick='setTool("circle", {"stroke-width": "+"})'>大</button>
+  <button class="btnStroke" data-onclick='setTool("circle", {"stroke": "#f0f"})'>颜色</button>
+</div>
+
+
 </div>
 
 
@@ -114,7 +127,7 @@
     var curShapeID = null;
     var d = "";
     var i = 0;
-    var downX, downY, downTimer;
+    var downX, downY, downTimer, prevTime=0;
     var rPath=[];
     var DOT_DISTANCE=10;
     var DRAW_TOLERANCE=10;
@@ -148,6 +161,10 @@
         "stroke-width": 2,
         "stroke":"#f00",
       },
+      circle:{
+        "stroke-width": 2,
+        "stroke":"#f00",
+      }
     }
 
 
@@ -183,7 +200,7 @@
       
     }
 
-    function setTool (tool, options, isToggle) {
+    function setTool (tool, options) {
       
       if(!options) options={};
       
@@ -196,7 +213,8 @@
       if( $('.shape.hl').size() ){
         shapeA = $('.shape.hl').toArray();
       }else {
-        getOptions(ToolSet[tool], options, isToggle );
+        getOptions(ToolSet[tool], options );
+
         /*
           prevent remember last shape
         */
@@ -208,24 +226,52 @@
         var oldOptions = v.dataset.options;
         var newOptions = oldOptions ? JSON.parse( oldOptions ) : ToolSet[tool];
 
-        getOptions(newOptions, options, isToggle );
+        getOptions(newOptions, options );
 
         if( oldOptions == JSON.stringify(newOptions) ) return true;
 
+        var isCommon = /stroke/.test( Object.keys(newOptions).join(',') );
 
-        if( tool!=v.dataset.tool ) return true;
-        if(tool=='curve'){
-          var rPath = JSON.parse(v.dataset.path);
+        //if( tool!=v.dataset.tool ) return true;
+
+        var path = v.dataset.path;
+        var start = v.dataset.startpoint;
+        var end = v.dataset.endpoint;
+        var vTool = v.dataset.tool;
+
+        if( path)
+        if(vTool=='curve' ){
+          var rPath = JSON.parse(path);
           createPath(rPath, v, newOptions);
         }
 
-        if(tool=='line'){
-
-          var startPoint = JSON.parse(v.dataset.startpoint);
-          var endPoint = JSON.parse(v.dataset.endpoint);
+        if( start && end )
+        if(vTool=='line' ){
+          
+          var startPoint = JSON.parse(start);
+          var endPoint = JSON.parse(end);
           createLine(startPoint, endPoint, v, newOptions);
 
         }
+        
+        if( start && end )
+        if(vTool=='rect' ){
+
+          var startPoint = JSON.parse(start);
+          var endPoint = JSON.parse(end);
+          createRect(startPoint, endPoint, v, newOptions);
+
+        }
+
+        if( start && end )
+        if(vTool=='circle' ){
+
+          var startPoint = JSON.parse(start);
+          var endPoint = JSON.parse(end);
+          createCircle(startPoint, endPoint, v, newOptions);
+
+        }
+
 
         isDirty = true;
       });
@@ -283,11 +329,20 @@
    	  downX = evt.pageX;
    	  downY = evt.pageY;
 
+      
 
-      if(e.shiftKey && isShape && $('.shape.hl').length ){
+      if(e.shiftKey && isShape && $('.shape.hl').length ) {
         $(evt.target).toggleClass('hl');
         return;
       }
+
+      if(e.timeStamp - prevTime<500){
+        selecting=true;
+        $('svg.canvas').addClass('selectState');
+        prevTime = 0;
+        return;
+      }
+      prevTime = e.timeStamp;
 
    	  // long click to trigger dragging mode && selecting mode
       if(!selecting)
@@ -345,11 +400,14 @@
 
 	    var dist = downX&&downY && calcDist([downX, downY], [x,y]) || 0;
 
-      if( dist>10 ) clearTimeout(downTimer);
+      if( dist>10 ){
+        prevTime = 0;
+        clearTimeout(downTimer);
+      }
 
       if(e.shiftKey && ( !isTouch? e.which>0 : e.touches.length>0 ) ){
         selecting = true;
-      } 
+      }
 
       if(selecting && dist>10){
 
@@ -421,6 +479,36 @@
           
 
         }
+
+        if(curTool=='rect'){
+
+          if( !drawing && dist >DRAW_TOLERANCE ){
+            drawing = true;
+            createRect([downX, downY], [x,y]);
+          }
+          if(!drawing)return;
+
+          var rect = document.querySelector('[data-id="'+ curShapeID +'"]');
+          createRect([downX, downY], [x,y], rect);
+          
+
+        }
+
+        if(curTool=='circle'){
+
+          if( !drawing && dist >DRAW_TOLERANCE ){
+            drawing = true;
+            createCircle([downX, downY], [x,y]);
+          }
+          if(!drawing)return;
+
+          var circle = document.querySelector('[data-id="'+ curShapeID +'"]');
+          createCircle([downX, downY], [x,y], circle);
+          
+
+        }
+
+
 
 
       }
@@ -564,7 +652,7 @@
       if(!options) options = ToolSet['line'];
 
       if(!path){
-        path = makeShape("path", { "class":'shape line', fill:"none" });
+        path = makeShape("path", { "class":'shape line', fill:"rgba(255,255,255,0.01)" });
         curShapeID = +new Date+Math.random();
         document.querySelector('svg.canvas').appendChild( path );
         path.setAttribute("data-id", curShapeID );
@@ -590,6 +678,82 @@
 
 
     }
+
+
+    function createRect (startPoint, endPoint, path, options) {
+
+      if(!options) options = ToolSet['rect'];
+      
+      if(!path){
+        path = makeShape("rect", { "class":'shape rect', fill:"rgba(255,255,255,0.01)" });
+        curShapeID = +new Date+Math.random();
+        document.querySelector('svg.canvas').appendChild( path );
+        path.setAttribute("data-id", curShapeID );
+      }
+
+      var swidth = options['stroke-width']||2;
+
+      var x = Math.min(startPoint[0], endPoint[0]);
+      var y = Math.min(startPoint[1], endPoint[1]);
+      var w = Math.abs( startPoint[0] - endPoint[0] );
+      var h = Math.abs( startPoint[1] - endPoint[1] );
+
+      var attr = {"x":x, "y":y, "width":w, "height":h, "stroke-linecap":"round", "stroke-linejoin":"miter", "stroke-miterlimit":"4", stroke:options['stroke']||'#f00', "stroke-width": swidth }
+      
+      for(var i in attr){
+        path.setAttribute(i, attr[i]);
+      }
+
+      path.setAttribute("data-tool", 'rect' );
+      path.setAttribute("data-startpoint", JSON.stringify( startPoint ) );
+      path.setAttribute("data-endpoint", JSON.stringify( endPoint ) );
+      path.setAttribute("data-options", JSON.stringify( options ) );
+
+
+    }
+
+
+
+    function createCircle (startPoint, endPoint, path, options) {
+
+      if(!options) options = ToolSet['circle'];
+      
+      if(!path){
+        path = makeShape("ellipse", { "class":'shape circle', fill:"rgba(255,255,255,0.01)" });
+        curShapeID = +new Date+Math.random();
+        document.querySelector('svg.canvas').appendChild( path );
+        path.setAttribute("data-id", curShapeID );
+      }
+
+      var swidth = options['stroke-width']||2;
+
+      var x = Math.min(startPoint[0], endPoint[0]);
+      var y = Math.min(startPoint[1], endPoint[1]);
+      var w = Math.abs( startPoint[0] - endPoint[0] );
+      var h = Math.abs( startPoint[1] - endPoint[1] );
+      var rx = w/2;
+      var ry = h/2;
+      var cx = x+rx;
+      var cy = y+ry;
+
+
+      var attr = {"cx":cx, "cy":cy, "rx":rx, "ry":ry, "stroke-linecap":"round", "stroke-linejoin":"miter", "stroke-miterlimit":"4", stroke:options['stroke']||'#f00', "stroke-width": swidth }
+      
+      for(var i in attr){
+        path.setAttribute(i, attr[i]);
+      }
+
+      path.setAttribute("data-tool", 'circle' );
+      path.setAttribute("data-startpoint", JSON.stringify( startPoint ) );
+      path.setAttribute("data-endpoint", JSON.stringify( endPoint ) );
+      path.setAttribute("data-options", JSON.stringify( options ) );
+
+
+    }
+
+
+
+
 
     function createPath (rPath, path, options) {
 
@@ -635,7 +799,7 @@
         if( !/undefined|NaN/.test(d) ){
             
             if(!path){
-              path = makeShape("path", { "class":'shape curve', fill:"none" });
+              path = makeShape("path", { "class":'shape curve', fill:"rgba(255,255,255,0.01)" });
               curShapeID = +new Date+Math.random();
               document.querySelector('svg.canvas').appendChild( path );
               path.setAttribute("data-id", curShapeID );
