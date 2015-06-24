@@ -277,6 +277,15 @@
 
         }
 
+        if( start && end )
+        if(vTool=='text' ){
+
+          var startPoint = JSON.parse(start);
+          var endPoint = JSON.parse(end);
+          createText(startPoint, endPoint, v, newOptions);
+
+        }
+
 
         isDirty = true;
       });
@@ -511,10 +520,14 @@
           var circle = document.querySelector('[data-id="'+ curShapeID +'"]');
           createCircle([downX, downY], [x,y], circle);
           
-
         }
 
-
+        if(curTool=='text'){
+          if( !drawing && dist >DRAW_TOLERANCE ){
+            drawing = true;
+          }
+          if(!drawing)return;
+        }
 
 
       }
@@ -554,7 +567,12 @@
     	if(dragging){
     		dragging=false;
         svgHistory.update();
+        return;
     	}
+
+      if(curTool=='text' && !drawing && !dragging){
+        createText([downX, downY], [x,y]);
+      }
 
 	    if(drawing){
 
@@ -573,11 +591,7 @@
 
         }
    
-        if(curTool=='line'){
 
-
-
-        }
 
          svgHistory.update();
 
@@ -719,6 +733,33 @@
     }
 
 
+
+    function createText (startPoint, endPoint, path, options) {
+
+      if(!options) options = ToolSet['text'];
+      console.log(options);
+      if(!path){
+        path = makeShape("text", { "class":'shape text' });
+        curShapeID = +new Date+Math.random();
+        document.querySelector('svg.canvas').appendChild( path );
+        path.setAttribute("data-id", curShapeID );
+      }
+
+      var attr = {"x":endPoint[0], "y":endPoint[1], "fill":options.fill, "font-family": options['font-family'], "font-size": options['font-size'] }
+      
+      for(var i in attr){
+        path.setAttribute(i, attr[i]);
+      }
+
+      path.innerHTML = "TEOWTIJIO";
+
+      path.setAttribute("data-tool", 'text' );
+      path.setAttribute("data-startpoint", JSON.stringify( startPoint ) );
+      path.setAttribute("data-endpoint", JSON.stringify( endPoint ) );
+      path.setAttribute("data-options", JSON.stringify( options ) );
+
+
+    }
 
     function createCircle (startPoint, endPoint, path, options) {
 
@@ -900,6 +941,130 @@
     function bit_clear(a,b) { return a &= ~(b)}
     function bit_flip(a,b) { return a ^= (b)}
     function bit_check(a,b) { return (a & (b)) !=0 }
+
+
+
+// Function: getPathBBox
+// Get correct BBox for a path in Webkit
+// Converted from code found here:
+// http://blog.hackers-cafe.net/2009/06/how-to-calculate-bezier-curves-bounding.html
+//
+// Parameters:
+// path - The path DOM element to get the BBox for
+//
+// Returns:
+// A BBox-like object
+var getPathBBox = function(path) {
+  var seglist = path.pathSegList;
+  var tot = seglist.numberOfItems;
+
+  var bounds = [[], []];
+  var start = seglist.getItem(0);
+  var P0 = [start.x, start.y];
+
+  var i;
+  for (i = 0; i < tot; i++) {
+    var seg = seglist.getItem(i);
+
+    if(typeof seg.x === 'undefined') {continue;}
+
+    // Add actual points to limits
+    bounds[0].push(P0[0]);
+    bounds[1].push(P0[1]);
+
+    if(seg.x1) {
+      var P1 = [seg.x1, seg.y1],
+        P2 = [seg.x2, seg.y2],
+        P3 = [seg.x, seg.y];
+
+      var j;
+      for (j = 0; j < 2; j++) {
+
+        var calc = function(t) {
+          return Math.pow(1-t,3) * P0[j]
+            + 3 * Math.pow(1-t,2) * t * P1[j]
+            + 3 * (1-t) * Math.pow(t, 2) * P2[j]
+            + Math.pow(t,3) * P3[j];
+        };
+
+        var b = 6 * P0[j] - 12 * P1[j] + 6 * P2[j];
+        var a = -3 * P0[j] + 9 * P1[j] - 9 * P2[j] + 3 * P3[j];
+        var c = 3 * P1[j] - 3 * P0[j];
+
+        if (a == 0) {
+          if (b == 0) {
+            continue;
+          }
+          var t = -c / b;
+          if (0 < t && t < 1) {
+            bounds[j].push(calc(t));
+          }
+          continue;
+        }
+        var b2ac = Math.pow(b,2) - 4 * c * a;
+        if (b2ac < 0) {continue;}
+        var t1 = (-b + Math.sqrt(b2ac))/(2 * a);
+        if (0 < t1 && t1 < 1) {bounds[j].push(calc(t1));}
+        var t2 = (-b - Math.sqrt(b2ac))/(2 * a);
+        if (0 < t2 && t2 < 1) {bounds[j].push(calc(t2));}
+      }
+      P0 = P3;
+    } else {
+      bounds[0].push(seg.x);
+      bounds[1].push(seg.y);
+    }
+  }
+
+  var x = Math.min.apply(null, bounds[0]);
+  var w = Math.max.apply(null, bounds[0]) - x;
+  var y = Math.min.apply(null, bounds[1]);
+  var h = Math.max.apply(null, bounds[1]) - y;
+  return {
+    'x': x,
+    'y': y,
+    'width': w,
+    'height': h
+  };
+};
+
+
+/**
+ * Returns a 15 degree angle coordinate associated with the two given
+ * coordinates
+ * @param {number} x1 - First coordinate's x value
+ * @param {number} x2 - Second coordinate's x value
+ * @param {number} y1 - First coordinate's y value
+ * @param {number} y2 - Second coordinate's y value
+ * @returns {AngleCoord15}
+*/
+var snapToAngle = function (x1, y1, x2, y2) {
+  var snap = Math.PI / 12; // 15 degrees
+  var dx = x2 - x1;
+  var dy = y2 - y1;
+  var angle = Math.atan2(dy, dx);
+  var dist = Math.sqrt(dx * dx + dy * dy);
+  var snapangle = Math.round(angle / snap) * snap;
+
+  return {
+    x: x1 + dist * Math.cos(snapangle),
+    y: y1 + dist * Math.sin(snapangle),
+    a: snapangle
+  };
+};
+
+
+/**
+ * Check if two rectangles (BBoxes objects) intersect each other
+ * @param {SVGRect} r1 - The first BBox-like object
+ * @param {SVGRect} r2 - The second BBox-like object
+ * @returns {boolean} True if rectangles intersect
+ */
+var rectsIntersect = function (r1, r2) {
+  return r2.x < (r1.x + r1.width) &&
+    (r2.x + r2.width) > r1.x &&
+    r2.y < (r1.y + r1.height) &&
+    (r2.y + r2.height) > r1.y;
+};
 
 
   </script>
