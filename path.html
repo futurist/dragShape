@@ -59,12 +59,29 @@
     position: absolute;
   }
 
+  svg.canvas{
+    position: fixed;
+    top:0;
+    left:0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .textWrap{
+    position: absolute;
+  }
+  .bbox{
+    position: absolute;
+    z-index: 9999999999;
+    background-color: rgba(255,0,0,0.5);
+  }
+
 </style>
 </head>
 <body>
 
-<div id="svgCon">
-  
+<div id="svgCon" style="padding-top:100px;">
+
   <svg width="1640" height='1640' class="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1">
     <defs>
     <marker id="triangle" preserveAspectRatio="xMinYMin meet"
@@ -196,7 +213,7 @@
 
     function init () {
       setTool('curve');
-      var pos = $('#svgCon').offset();
+      var pos = $('svg.canvas').offset();
       $('#textCon').css({ left:pos.left+'px', top:pos.top+'px', width:0+'px', height:0+'px' });
     }
     init();
@@ -211,7 +228,7 @@
       var set = options.set;
       var clear = options.clear;
 
-      if( toggle ){ 
+      if( toggle ){
         if(toggle.arrow) oldOptions.arrow ^= toggle.arrow;  //bit flip
         if(toggle.highLight) oldOptions.highLight ^= toggle.highLight;  //bit flip
         if(toggle.autoClose){
@@ -230,15 +247,15 @@
       }
 
       return true;
-      
+
     }
 
-     
+
 
     function setTool (tool, options) {
-      
+
       if(!options) options={};
-      
+
       curTool = tool;
 
       $('#drawTool .subtool').hide();
@@ -282,13 +299,13 @@
 
         if( start && end )
         if(vTool=='line' ){
-          
+
           var startPoint = JSON.parse(start);
           var endPoint = JSON.parse(end);
           createLine(startPoint, endPoint, v, newOptions);
 
         }
-        
+
         if( start && end )
         if(vTool=='rect' ){
 
@@ -322,7 +339,7 @@
       if(isDirty) svgHistory.update();
     }
 
-    
+
 
     NodeList.prototype.forEach = Array.prototype.forEach;
 
@@ -363,12 +380,16 @@
     function downFunc (e) {
       //e.preventDefault();
    	  var evt = /touch/.test(e.type) ? e.touches[0] : e;
-      
+
       if( !$(evt.target).is('.text')  ) $('.text').blur();
 
    	  var x = evt.pageX;
    	  var y = evt.pageY;
+
       var isShape = $(evt.target).hasClass('shape');
+      var isText = $(evt.target).closest('.textWrap').size()>0;
+
+      var targetEl = isText? $(evt.target).closest('.textWrap') : evt.target;
 
    	  downX = evt.pageX;
    	  downY = evt.pageY;
@@ -391,8 +412,8 @@
       if(!selecting)
    	  downTimer = window.setTimeout(function() {
         //we are longclick on shape
-        if( isShape ){
-     	  	addSelectionList(evt.target);
+        if( isShape || isText ){
+     	  	addSelectionList( targetEl );
      	  	dragging = true;
           $('[data-hl]').each(function  (i,v) {
             $(v).attr('data-oldTrans', getTranslateXY(v).join(',') );
@@ -407,7 +428,7 @@
    	  }, 200);
 
 
-   	  if( $(evt.target).data('hl') ){
+   	  if( $(targetEl).data('hl') ){
 
    	  	dragging = true;
    	  	$('[data-hl]').each(function  (i,v) {
@@ -419,7 +440,7 @@
    	  	dragging = false;
 
         if(!e.shiftKey)
-   	  	document.querySelectorAll('.shape').forEach(function(v){
+   	  	$(targetEl).each(function(i,v){
           $(v).data('hl',null);
    	  	});
 
@@ -440,6 +461,9 @@
       var dx = x-downX;
       var dy = y-downY;
       var isShape = $(evt.target).hasClass('shape');
+      var isText = $(evt.target).closest('.textWrap').size()>0;
+
+      var targetEl = isText? $(evt.target).closest('.textWrap') : evt.target;
 
 	    var dist = downX&&downY && calcDist([downX, downY], [x,y]) || 0;
 
@@ -485,9 +509,10 @@
             oldTrans= !oldTrans?[0,0]:oldTrans.split(',');
             var tx = dx+ ~~oldTrans[0];
             var ty = dy+ ~~oldTrans[1];
-            $(v).attr("transform", "translate("+ tx +","+ ty +")");
+            //$(v).attr("transform", "translate("+ tx +","+ ty +")");
+            v.style.transform = "translate("+ tx +"px,"+ ty +"px)";
           });
-          
+
 
       }else{
 
@@ -521,7 +546,7 @@
 
           var line = document.querySelector('[data-id="'+ curShapeID +'"]');
           createLine([downX, downY], [x,y], line);
-          
+
 
         }
 
@@ -535,7 +560,7 @@
 
           var rect = document.querySelector('[data-id="'+ curShapeID +'"]');
           createRect([downX, downY], [x,y], rect);
-          
+
 
         }
 
@@ -549,14 +574,18 @@
 
           var circle = document.querySelector('[data-id="'+ curShapeID +'"]');
           createCircle([downX, downY], [x,y], circle);
-          
+
         }
 
         if(curTool=='text'){
           if( !drawing && dist >DRAW_TOLERANCE ){
             drawing = true;
+            createTextRect([downX, downY], [x,y]);
           }
           if(!drawing)return;
+
+          var text = document.querySelector('[data-id="'+ curShapeID +'"]');
+          createTextRect([downX, downY], [x,y], text);
         }
 
 
@@ -578,7 +607,7 @@
     	clearTimeout(downTimer);
 
        enableSelection($('.text'));
-      
+
       if(selecting){
         selecting = false;
         $('#selrect').hide();
@@ -602,23 +631,29 @@
 
 
 
-      if(curTool=='text' && !drawing && !dragging && 
-        !$(document.activeElement).is('.text') && 
+      /**
+      ******* Dot Text Creation, has many different way, so use dragged Text area instead.
+
+      if(curTool=='text' && !drawing && !dragging &&
+        !$(document.activeElement).is('.text') &&
         //( !prevFocus || !prevFocus.is('.text') ) &&
         !$('.editing').size()  ){
 
         var $curText = $( document.elementFromPoint(x,y) ).closest('.text');
         if( $curText.size() ){
-          
+
 
         } else {
 
           createText([downX, downY], [x,y]);
-          
+
         }
 
       }
       prevFocus = $(document.activeElement);
+      ******* End Dot Text
+      **/
+
 
 	    if(drawing){
 
@@ -636,7 +671,16 @@
           });
 
         }
-   
+
+        if(curTool=='text'){
+
+          if($('.textrect').size()==0  ) return;
+          var startPoint = $('.textrect').data('startpoint') ;
+          var endPoint = $('.textrect').data('endpoint') ;
+          $('.textrect').remove();
+          createText( startPoint, endPoint );
+
+        }
 
 
          svgHistory.update();
@@ -698,12 +742,12 @@
         var newHtml = $('#svgCon').html();
 
         //self function sets up the action and performs it
-        OPHistory.do( 
+        OPHistory.do(
             //the 'do' or 'redo' function
             function() {
               self.html = newHtml;
               $('#svgCon').html(newHtml);
-            }, 
+            },
 
             //the 'undo' function
             function() {
@@ -729,7 +773,7 @@
       var highlight = options.highLight;
 
       var attr = {"d":d, "stroke-linecap":"round", "stroke-linejoin":"miter", "stroke-miterlimit":"4", stroke:options['stroke']||'#f00', "stroke-width": highlight ? swidth*4 : swidth , "opacity": highlight?0.5:1 }
-      
+
       for(var i in attr){
         path.setAttribute(i, attr[i]);
       }
@@ -737,6 +781,7 @@
       path.setAttribute("marker-start", bit_check(options.arrow, 0x1) ? "url(#triangle)" : "none" );
       path.setAttribute("marker-end", bit_check(options.arrow, 0x2) ? "url(#triangle)" : "none" );
 
+      path.setAttribute("data-bbox", JSON.stringify( [startPoint,endPoint] ) );
       path.setAttribute("data-tool", 'line' );
       path.setAttribute("data-startpoint", JSON.stringify( startPoint ) );
       path.setAttribute("data-endpoint", JSON.stringify( endPoint ) );
@@ -749,7 +794,7 @@
     function createRect (startPoint, endPoint, path, options) {
 
       if(!options) options = ToolSet['rect'];
-      
+
       if(!path){
         path = makeShape("rect", { "class":'shape rect', fill:"rgba(255,255,255,0.01)" });
         curShapeID = +new Date+Math.random();
@@ -765,11 +810,46 @@
       var h = Math.abs( startPoint[1] - endPoint[1] );
 
       var attr = {"x":x, "y":y, "width":w, "height":h, "stroke-linecap":"round", "stroke-linejoin":"miter", "stroke-miterlimit":"4", stroke:options['stroke']||'#f00', "stroke-width": swidth }
-      
+
       for(var i in attr){
         path.setAttribute(i, attr[i]);
       }
 
+      path.setAttribute("data-bbox", JSON.stringify( [startPoint,endPoint] ) );
+      path.setAttribute("data-tool", 'rect' );
+      path.setAttribute("data-startpoint", JSON.stringify( startPoint ) );
+      path.setAttribute("data-endpoint", JSON.stringify( endPoint ) );
+      path.setAttribute("data-options", JSON.stringify( options ) );
+
+
+    }
+
+
+    function createTextRect (startPoint, endPoint, path, options) {
+
+      if(!options) options = ToolSet['rect'];
+
+      if(!path){
+        path = makeShape("rect", { "class":'shape textrect', fill:"rgba(255,255,255,0.01)" });
+        curShapeID = +new Date+Math.random();
+        document.querySelector('svg.canvas').appendChild( path );
+        path.setAttribute("data-id", curShapeID );
+      }
+
+      var swidth = options['stroke-width']||2;
+
+      var x = Math.min(startPoint[0], endPoint[0]);
+      var y = Math.min(startPoint[1], endPoint[1]);
+      var w = Math.abs( startPoint[0] - endPoint[0] );
+      var h = Math.abs( startPoint[1] - endPoint[1] );
+
+      var attr = {"x":x, "y":y, "width":w, "height":h, "stroke-linecap":"round", "stroke-linejoin":"miter", "stroke-dasharray":"20,10", "stroke-miterlimit":"4", stroke:options['stroke']||'#f00', "stroke-width": swidth }
+
+      for(var i in attr){
+        path.setAttribute(i, attr[i]);
+      }
+
+      path.setAttribute("data-bbox", JSON.stringify( [startPoint,endPoint] ) );
       path.setAttribute("data-tool", 'rect' );
       path.setAttribute("data-startpoint", JSON.stringify( startPoint ) );
       path.setAttribute("data-endpoint", JSON.stringify( endPoint ) );
@@ -792,7 +872,7 @@
       }
 
       var attr = {"x":endPoint[0], "y":endPoint[1], "fill":options.fill, "font-family": options['font-family'], "font-size": options['font-size'] }
-      
+
       for(var i in attr){
         path.setAttribute(i, attr[i]);
       }
@@ -812,26 +892,41 @@
       if(!options) options = ToolSet['text'];
 
       if(!path){
-        path = $('<textarea class="text"></textarea>');
-        path = $('<input class="text"/>');
+        path = $('<div class="textWrap"><textarea class="text"></textarea></div>');
         curShapeID = +new Date+Math.random();
         $('#textCon').append( path );
         path.attr("data-id", curShapeID );
       }
-      var offset = $('#textCon').offset();
 
-      var attr = {"left":endPoint[0] - offset.left, "top":endPoint[1] - offset.top, "color":options.fill, "font-family": options['font-family'], "font-size": options['font-size'] }
-      
-      $(path).css(attr);
+      var x = Math.min(startPoint[0], endPoint[0]);
+      var y = Math.min(startPoint[1], endPoint[1]);
+      var w = Math.abs( startPoint[0] - endPoint[0] );
+      var h = Math.abs( startPoint[1] - endPoint[1] );
 
-      path.val( "TEOWTIJIO" );
 
+      var text = $(path).find('.text');
+
+      path.css({"left":x, "top":y});
+      text.css({ "width":w, "height":h, "color":options.fill, "font-family": options['font-family'], "font-size": options['font-size'] });
+
+      text.val( "TEOWTIJIO" );
+
+      var offset = text.offset();
+      var bbox = [ [offset.left, offset.top], [offset.left+offset.width, offset.top+offset.height] ];
+
+      var $bbox = $('<div class="bbox"></div>');
+      path.append( $bbox );
+      offset.left=offset.top=0;
+      $bbox.css(offset);
+
+
+      path.attr("data-bbox", JSON.stringify( bbox ) );
       path.attr("data-tool", 'text' );
       path.attr("data-startpoint", JSON.stringify( startPoint ) );
       path.attr("data-endpoint", JSON.stringify( endPoint ) );
       path.attr("data-options", JSON.stringify( options ) );
 
-      path.on("focus", function  () {
+      text.on("focus", function  () {
         $(this).addClass('editing');
       }).on("blur", function  (e) {
         setTimeout(function  () {
@@ -853,7 +948,7 @@
     function createCircle (startPoint, endPoint, path, options) {
 
       if(!options) options = ToolSet['circle'];
-      
+
       if(!path){
         path = makeShape("ellipse", { "class":'shape circle', fill:"rgba(255,255,255,0.01)" });
         curShapeID = +new Date+Math.random();
@@ -874,11 +969,12 @@
 
 
       var attr = {"cx":cx, "cy":cy, "rx":rx, "ry":ry, "stroke-linecap":"round", "stroke-linejoin":"miter", "stroke-miterlimit":"4", stroke:options['stroke']||'#f00', "stroke-width": swidth }
-      
+
       for(var i in attr){
         path.setAttribute(i, attr[i]);
       }
 
+      path.setAttribute("data-bbox", JSON.stringify( [startPoint,endPoint] ) );
       path.setAttribute("data-tool", 'circle' );
       path.setAttribute("data-startpoint", JSON.stringify( startPoint ) );
       path.setAttribute("data-endpoint", JSON.stringify( endPoint ) );
@@ -900,6 +996,7 @@
         var t, d='';
         var startP = rPath[0];
         var endP = startP;
+        var newPath = rPath;
 
         if(!rPath || !L) return;
 
@@ -925,15 +1022,22 @@
           d+=" M" + p[0] + "," + p[1];
           d+=" L" + startP[0] + "," + startP[1];
         } else if( (options.autoClose&0x2)!=0) {
-            
-            d += calcInterpo(rPath, 10);
-            //drawing circle Curve way.
-            //rPath = rPath.concat( _interpo.slice(1) );
+
+          //drawing circle Curve way.
+
+          var _interpo = calcInterpo(rPath, 10);
+          d+=" C"+_interpo[1][0]+","+_interpo[1][1];
+          d+=" "+_interpo[1][0]+","+_interpo[1][1];
+          d+=" "+_interpo[2][0]+","+_interpo[2][1];
+
+          newPath = rPath.concat( _interpo.slice(1) );
+            //d += calcInterpo(rPath, 10);
+            //newPath = rPath.concat( _interpo.slice(1) );
         }
 
         d = parsePath( d,true, 10 );
         if( !/undefined|NaN/.test(d) ){
-            
+
             if(!path){
               path = makeShape("path", { "class":'shape curve', fill:"rgba(255,255,255,0.01)" });
               curShapeID = +new Date+Math.random();
@@ -943,11 +1047,12 @@
             }
 
             var attr = {"d":d, "stroke-linecap":"round", "stroke-linejoin":"miter", "stroke-miterlimit":"4", stroke:options['stroke']||'#f00', "stroke-width":options['stroke-width']||2, }
-            
+
             for(var i in attr){
               path.setAttribute(i, attr[i]);
             }
 
+            path.setAttribute("data-bbox", JSON.stringify( getPathBBox(newPath) ) );
             path.setAttribute("data-tool", 'curve' );
             path.setAttribute("data-options", JSON.stringify( options ) );
 
@@ -985,8 +1090,9 @@
 
     function getTranslateXY(obj)
     {
+       if(obj.size) obj=obj.get(0);
         var style = obj.style, transform = style.transform || style.webkitTransform || style.mozTransform;
-        var transform =obj.getAttribute('transform');
+        //var transform =obj.getAttribute('transform');
         if(!transform) return [0,0];
 		var zT = transform.match(/translate\(\s*([-0-9]+[\w%]*)\s*,\s*([-0-9]+[\w%]*)\s*\)/);
         return zT ? [ parseInt(zT[1]), parseInt(zT[2]) ] : [0,0];
@@ -1019,6 +1125,8 @@
         _interpo.push([ res[i], res[i+1] ]);
       }
 
+      return _interpo;
+
       d+=" C"+_interpo[1][0]+","+_interpo[1][1];
       d+=" "+_interpo[1][0]+","+_interpo[1][1];
       d+=" "+_interpo[2][0]+","+_interpo[2][1];
@@ -1033,6 +1141,23 @@
 
 
 
+
+function getPathBBox (rPath) {
+  var x, y, minx, miny, maxx, maxy;
+
+  minx = miny = Number.POSITIVE_INFINITY;
+  maxx = maxy = Number.NEGATIVE_INFINITY;
+  for(var i=0; i<rPath.length; i++){
+    x = rPath[i][0];
+    y = rPath[i][1];
+    minx = Math.min(minx, x); miny = Math.min(miny, y);
+    maxx = Math.max(maxx, x); maxy = Math.max(maxy, y);
+  }
+  return [ [minx, miny], [maxx, maxy] ];
+}
+
+
+
 // Function: getPathBBox
 // Get correct BBox for a path in Webkit
 // Converted from code found here:
@@ -1043,7 +1168,7 @@
 //
 // Returns:
 // A BBox-like object
-var getPathBBox = function(path) {
+var getPathBBox2 = function(path) {
   var seglist = path.pathSegList;
   var tot = seglist.numberOfItems;
 
@@ -1148,25 +1273,32 @@ var snapToAngle = function (x1, y1, x2, y2) {
  * @param {SVGRect} r2 - The second BBox-like object
  * @returns {boolean} True if rectangles intersect
  */
-var rectsIntersect = function (r1, r2) {
+var rectsIntersect2 = function (r1, r2) {
   return r2.x < (r1.x + r1.width) &&
     (r2.x + r2.width) > r1.x &&
     r2.y < (r1.y + r1.height) &&
     (r2.y + r2.height) > r1.y;
 };
+var rectsIntersect = function (p1, p2, p3, p4) {
+  return p3[0]<p2[0]&&
+    p4[0]>p1[0] &&
+    p3[1]<p2[1] &&
+    p4[1]>p1[1];
+};
 
 
-function disableSelection(node){      
+
+function disableSelection(node){
     $(node).addClass('unselectable');
     $(node).attr("unselectable","on");
     $(node).attr('disabled', 'disabled');
-}   
+}
 
-function enableSelection(node){      
+function enableSelection(node){
     $(node).removeClass('unselectable');
     $(node).attr("unselectable",null);
     $(node).attr('disabled', null);
-}   
+}
 
 
 
