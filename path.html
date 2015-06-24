@@ -8,11 +8,21 @@
   .hidden{
     display:none;
   }
-  *:not(input):not(textarea) {
+  *:not(input):not(textarea){
     -webkit-tap-highlight-color: rgba(0,0,0,0);
     -webkit-user-select: none;
     -webkit-touch-callout: none;
   }
+
+  .unselectable {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+      user-select: none;
+  }
+
   path{
   	pointer-events: visible;
   }
@@ -20,7 +30,7 @@
   	stroke-dasharray: 20,15;
     cursor: -webkit-grabbing;
   }
-  .selectState, .selectState .hl{
+  .selectState, .selectState [data-hl]{
       cursor: crosshair!important;
   }
   #drawTool{
@@ -40,6 +50,13 @@
   button{
     height:44px;
     width:88px;
+  }
+  #textCon{
+    position: absolute;
+    overflow: visible;
+  }
+  #textCon .text{
+    position: absolute;
   }
 
 </style>
@@ -68,6 +85,8 @@
   </svg>
 </div>
 
+<div id="textCon" class="canvas">
+</div>
 
 <div id="drawTool">
 <div class="maintool">
@@ -136,6 +155,7 @@
     var selecting = false;
     var selectedList = [];
     var curTool = null;
+    var prevFocus = null;
 
     var isTouch = ('ontouchstart' in window) || ('DocumentTouch' in window && document instanceof DocumentTouch);
     var downE = isTouch? 'touchstart' :'mousedown';
@@ -167,11 +187,19 @@
       },
       text:{
         "font-family": "Arial",
-        "font-size": 18,
+        "font-size": 36,
         "fill":"red",
       }
     }
 
+
+
+    function init () {
+      setTool('curve');
+      var pos = $('#svgCon').offset();
+      $('#textCon').css({ left:pos.left+'px', top:pos.top+'px', width:0+'px', height:0+'px' });
+    }
+    init();
 
     function getOptions (oldOptions, setOptions) {
       // oldOptions parameter pass by ref
@@ -204,6 +232,8 @@
       return true;
       
     }
+
+     
 
     function setTool (tool, options) {
       
@@ -292,7 +322,7 @@
       if(isDirty) svgHistory.update();
     }
 
-    setTool('curve');
+    
 
     NodeList.prototype.forEach = Array.prototype.forEach;
 
@@ -331,10 +361,10 @@
     }
 
     function downFunc (e) {
-      e.preventDefault();
+      //e.preventDefault();
    	  var evt = /touch/.test(e.type) ? e.touches[0] : e;
-
-      if( ! $(evt.target).closest('.canvas').size() ) return;
+      
+      if( !$(evt.target).is('.text')  ) $('.text').blur();
 
    	  var x = evt.pageX;
    	  var y = evt.pageY;
@@ -342,8 +372,6 @@
 
    	  downX = evt.pageX;
    	  downY = evt.pageY;
-
-      
 
       if(e.shiftKey && isShape && $('[data-hl]').length ) {
         var d = $(evt.target).data('hl');
@@ -419,6 +447,8 @@
         prevTime = 0;
         clearTimeout(downTimer);
       }
+
+      if( !$(evt.target).is('.text') && dist>10  )  disableSelection($('.text'));
 
       if(!drawing && !dragging && $('[data-hl]').size() && e.shiftKey && ( !isTouch? e.which>0 : e.touches.length>0 ) ){
         selecting = true;
@@ -537,10 +567,8 @@
     function upFunc (e) {
 
     	//init
-    	e.preventDefault();
+    	//e.preventDefault();
     	var evt = /touch/.test(e.type) ? e.changedTouches[0] : e;
-
-      if( ! $(evt.target).closest('.canvas').size() ) return;
 
     	downX=downY=null;
 
@@ -548,6 +576,8 @@
       var y = evt.pageY;
 
     	clearTimeout(downTimer);
+
+       enableSelection($('.text'));
       
       if(selecting){
         selecting = false;
@@ -570,9 +600,25 @@
         return;
     	}
 
-      if(curTool=='text' && !drawing && !dragging){
-        createText([downX, downY], [x,y]);
+
+
+      if(curTool=='text' && !drawing && !dragging && 
+        !$(document.activeElement).is('.text') && 
+        //( !prevFocus || !prevFocus.is('.text') ) &&
+        !$('.editing').size()  ){
+
+        var $curText = $( document.elementFromPoint(x,y) ).closest('.text');
+        if( $curText.size() ){
+          
+
+        } else {
+
+          createText([downX, downY], [x,y]);
+          
+        }
+
       }
+      prevFocus = $(document.activeElement);
 
 	    if(drawing){
 
@@ -734,7 +780,7 @@
 
 
 
-    function createText (startPoint, endPoint, path, options) {
+    function createSVGText (startPoint, endPoint, path, options) {
 
       if(!options) options = ToolSet['text'];
       console.log(options);
@@ -757,6 +803,49 @@
       path.setAttribute("data-startpoint", JSON.stringify( startPoint ) );
       path.setAttribute("data-endpoint", JSON.stringify( endPoint ) );
       path.setAttribute("data-options", JSON.stringify( options ) );
+
+
+    }
+
+    function createText (startPoint, endPoint, path, options) {
+
+      if(!options) options = ToolSet['text'];
+
+      if(!path){
+        path = $('<textarea class="text"></textarea>');
+        path = $('<input class="text"/>');
+        curShapeID = +new Date+Math.random();
+        $('#textCon').append( path );
+        path.attr("data-id", curShapeID );
+      }
+      var offset = $('#textCon').offset();
+
+      var attr = {"left":endPoint[0] - offset.left, "top":endPoint[1] - offset.top, "color":options.fill, "font-family": options['font-family'], "font-size": options['font-size'] }
+      
+      $(path).css(attr);
+
+      path.val( "TEOWTIJIO" );
+
+      path.attr("data-tool", 'text' );
+      path.attr("data-startpoint", JSON.stringify( startPoint ) );
+      path.attr("data-endpoint", JSON.stringify( endPoint ) );
+      path.attr("data-options", JSON.stringify( options ) );
+
+      path.on("focus", function  () {
+        $(this).addClass('editing');
+      }).on("blur", function  (e) {
+        setTimeout(function  () {
+          $(e.target).removeClass('editing');
+        }, 300);
+      });
+
+      /*  // dblclick to trigger
+      path.on('dblclick', function () {
+          path.attr('contentEditable', 'true');
+          path.blur();
+          path.focus();
+      });
+      */
 
 
     }
@@ -1065,6 +1154,36 @@ var rectsIntersect = function (r1, r2) {
     r2.y < (r1.y + r1.height) &&
     (r2.y + r2.height) > r1.y;
 };
+
+
+function disableSelection(node){      
+    $(node).addClass('unselectable');
+    $(node).attr("unselectable","on");
+    $(node).attr('disabled', 'disabled');
+}   
+
+function enableSelection(node){      
+    $(node).removeClass('unselectable');
+    $(node).attr("unselectable",null);
+    $(node).attr('disabled', null);
+}   
+
+
+
+(function ($) {
+$.fn.disableSelection = function () {
+    return this.each(function () {
+        if (typeof this.onselectstart != 'undefined') {
+            this.onselectstart = function() { return false; };
+        } else if (typeof this.style.MozUserSelect != 'undefined') {
+            this.style.MozUserSelect = 'none';
+        } else {
+            this.onmousedown = function() { return false; };
+            this.onmousemove = function() { return false; };
+        }
+    });
+};
+})(Zepto);
 
 
   </script>
