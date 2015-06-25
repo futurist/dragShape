@@ -75,6 +75,12 @@
     z-index: 9999999999;
     background-color: rgba(255,0,0,0.5);
   }
+  [data-hl] .bbox{
+    background-color: rgba(255,255,0,0.5);
+  }
+  .handler{
+
+  }
 
 </style>
 </head>
@@ -158,6 +164,8 @@
   <script type="text/javascript" src="zepto.js"></script>
   <script type="text/javascript" src="catmullrom2bezier.js"></script>
   <script type="text/javascript" src="curve_calc.js"></script>
+  <script type="text/javascript" src="draggable.js"></script>
+
   <script type="text/javascript">
     var svgns = "http://www.w3.org/2000/svg";
     var curShapeID = null;
@@ -170,6 +178,7 @@
     var drawing = false;
     var dragging = false;
     var selecting = false;
+    var textEditing = false;
     var selectedList = [];
     var curTool = null;
     var prevFocus = null;
@@ -394,9 +403,9 @@
    	  downX = evt.pageX;
    	  downY = evt.pageY;
 
-      if(e.shiftKey && isShape && $('[data-hl]').length ) {
-        var d = $(evt.target).data('hl');
-        $(evt.target).data('hl', d?null:1);
+      if( (e.shiftKey||e.ctrlKey) && (isShape||isText) && !drawing && !dragging && !selecting ) {
+        var d = $(targetEl).data('hl');
+        $(targetEl).data('hl', d?null:1);
         return;
       }
 
@@ -440,7 +449,7 @@
    	  	dragging = false;
 
         if(!e.shiftKey)
-   	  	$(targetEl).each(function(i,v){
+   	  	$('[data-hl]').each(function(i,v){
           $(v).data('hl',null);
    	  	});
 
@@ -467,18 +476,22 @@
 
 	    var dist = downX&&downY && calcDist([downX, downY], [x,y]) || 0;
 
+      var buttonDown = ( !isTouch? e.which>0 : e.touches.length>0 );
+
       if( dist>10 ){
         prevTime = 0;
         clearTimeout(downTimer);
       }
 
-      if( !$(evt.target).is('.text') && dist>10  )  disableSelection($('.text'));
 
-      if(!drawing && !dragging && $('[data-hl]').size() && e.shiftKey && ( !isTouch? e.which>0 : e.touches.length>0 ) ){
+      if( !isText && dist>10  )  disableSelection($('.text'));
+
+      if(!drawing && !dragging && $('[data-hl]').size() && e.shiftKey && buttonDown ){
         selecting = true;
       }
 
-      if(selecting && dist>10){
+      if(!dragging && selecting && dist>10){
+
 
         var svg=document.querySelector('svg.canvas');
         var r = svg.createSVGRect();
@@ -491,15 +504,49 @@
          $('svg.canvas').addClass('selectState');
         $('#selrect').show().attr({x:r.x, y:r.y, width:r.width, height:r.height});
 
-        $('.shape').filter(function(i,v){ return $(this).attr('newHL') }).data('hl', null);
+        $('.shape, .textWrap').filter(function(i,v){ return $(this).attr('newHL') }).data('hl', null);
 
         var els = svg.getIntersectionList(r, null);
         els.forEach(function(v){
           if( $(v).hasClass('shape') ) addSelectionList(v, true);
         });
+
+
+        $('.textWrap,.shape').each(function  () {
+          var bbox = $(this).data('bbox');
+          var trans = getTranslateXY(this);
+          var startPoint = bbox[0];
+          var endPoint = bbox[1];
+          var x = Math.min(startPoint[0], endPoint[0]) + trans[0];
+          var y = Math.min(startPoint[1], endPoint[1]) + trans[1];
+          var w = Math.abs( startPoint[0] - endPoint[0] );
+          var h = Math.abs( startPoint[1] - endPoint[1] );
+          var isInterSect = rectsIntersect2( r,  { x:x, y:y, width:w,  height:h } );
+          if(isInterSect){
+            if(! $(this).data('hl') ) addSelectionList(this, true);
+          }else{
+            removeSelectionList(this, true);
+          }
+        })
+
+
         return;
 
       }
+
+
+
+      if( !selecting && buttonDown && isText ){
+        if(dist>10){
+          dragging = true;
+          $('[data-hl]').data('hl',null);
+          $(targetEl).attr('data-oldTrans', getTranslateXY(targetEl).join(',') );
+          $(targetEl).data('hl',1);
+        } else {
+
+        }
+      }
+
 
       //if(!e.shiftKey)
       if( dragging ){
@@ -578,7 +625,7 @@
         }
 
         if(curTool=='text'){
-          if( !drawing && dist >DRAW_TOLERANCE ){
+          if( !drawing && downX && downY && x && y && !dragging && !$('[data-hl]').size() && dist >DRAW_TOLERANCE ){
             drawing = true;
             createTextRect([downX, downY], [x,y]);
           }
@@ -599,20 +646,33 @@
     	//e.preventDefault();
     	var evt = /touch/.test(e.type) ? e.changedTouches[0] : e;
 
-    	downX=downY=null;
+      var isShape = $(evt.target).hasClass('shape');
+      var isText = $(evt.target).closest('.textWrap').size()>0;
+
+      var targetEl = isText? $(evt.target).closest('.textWrap') : evt.target;
+
 
       var x = evt.pageX;
       var y = evt.pageY;
+      var dist = downX&&downY && calcDist([downX, downY], [x,y]) || 0;
 
+      enableSelection($('.text'));
+
+      if(isText && dist<10 ){
+         $('[data-hl]').data('hl',null);
+         $(targetEl).find('.bbox').hide();
+         $(targetEl).find('.text').focus();
+      }
+
+      downX=downY=null;
     	clearTimeout(downTimer);
 
-       enableSelection($('.text'));
 
       if(selecting){
         selecting = false;
         $('#selrect').hide();
         $('svg.canvas').removeClass('selectState');
-        $('.shape').removeAttr('newHL');
+        $('.shape, .textWrap').removeAttr('newHL');
         return;
       }
 
@@ -919,6 +979,10 @@
       offset.left=offset.top=0;
       $bbox.css(offset);
 
+      var $hanlder = $('<div class="hanlder"></div>');
+      path.append( $hanlder );
+      $hanlder.css({ left:offset.width, top:offset.height });
+
 
       path.attr("data-bbox", JSON.stringify( bbox ) );
       path.attr("data-tool", 'text' );
@@ -929,6 +993,7 @@
       text.on("focus", function  () {
         $(this).addClass('editing');
       }).on("blur", function  (e) {
+        $(this).parent().find('.bbox').show();
         setTimeout(function  () {
           $(e.target).removeClass('editing');
         }, 300);
@@ -1075,6 +1140,17 @@
       if(isNew) $(el).get(0).setAttribute('newHL', 1);
       updateToolBox();
     }
+
+    function removeSelectionList (el, isNew) {
+      if(isNew){
+        if( $(el).get(0).getAttribute('newHL') ) $(el).data('hl', null);
+      }else{
+        $(el).data('hl', null);
+      }
+      updateToolBox();
+    }
+
+
 
     function updateToolBox () {
       var theTool, maxt=0, tool={};

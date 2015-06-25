@@ -7,7 +7,7 @@
   width: 100%;
   height: 640px;
   background-color: #2e9;
-  
+
   -ms-touch-action: none;
       touch-action: none;
 }
@@ -18,7 +18,7 @@
 .edit-rectangle rect {
   fill: rgba(0,0,0,0);
   stroke: #fff;
-  
+
   transition: fill 0.3s, stroke 0.3s;
 }
 .handler{
@@ -40,7 +40,7 @@ body { margin: 0; }
 var svgCanvas = document.querySelector('svg.con'),
     svgNS = 'http://www.w3.org/2000/svg',
     rectangles = [];
-  
+
 function Rectangle (x, y, w, h, svgCanvas) {
   this.x = x;
   this.y = y;
@@ -69,7 +69,7 @@ Rectangle.prototype.draw = function () {
       y = this.y,
       w = this.w,
       h = this.h;
-  
+
   this.g.setAttribute('x', x );
   this.g.setAttribute('y', y );
   this.el.setAttribute('x', this.stroke / 2);
@@ -99,7 +99,7 @@ var optionsDrag = {
     var g =me.element.parentNode;
     return {
       left: parseInt(g.getAttribute('x')),
-      top: parseInt(g.getAttribute('y')) 
+      top: parseInt(g.getAttribute('y'))
     }
   },
   onDrag: function (element, x, y, e) {
@@ -119,7 +119,7 @@ var optionsSize = {
     var g =me.element;
     return {
       left: parseInt(g.getAttribute('cx')),
-      top: parseInt(g.getAttribute('cy')) 
+      top: parseInt(g.getAttribute('cy'))
     }
   },
   onDrag: function (element, x, y, e) {
@@ -136,7 +136,7 @@ for (var i = 0; i < 5; i++) {
   j=i%8;
   t=Math.floor(i/8);
   var shape = new Rectangle(50 + 80 * t, 80+j*80, 80, 80, svgCanvas);
-  
+
   new Draggable(shape.el, optionsDrag);
   new Draggable(shape.handler, optionsSize);
 
@@ -171,7 +171,7 @@ $(window).on(isTouch? 'touchstart' :'mousedown',function  (e) {
   for(var i=0; i<rectangles.length; i++){
 
       var R = rectangles[i];
-      //check handler 
+      //check handler
       var t = $(R.handler).offset();
       if( PointInRect(ev.pageX, ev.pageY, t) ){
         R.g.classList.add('dragging');
@@ -202,10 +202,9 @@ $(window).on(isTouch? 'touchstart' :'mousedown',function  (e) {
         return;
       }
   }
+  startPoint= {x:ev.pageX, y:ev.pageY};
 
-  startPoint= [x:ev.pageX, y:ev.pageY];
-  
-  
+
 });
 
 
