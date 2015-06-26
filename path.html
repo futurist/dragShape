@@ -35,6 +35,7 @@
   }
   #drawTool{
     position: fixed;
+    z-index: 100;
     bottom: 0;
     left: 0;
     height: 30px;
@@ -60,8 +61,15 @@
     position: absolute;
   }
 
+  #svgCon{
+    position: fixed;
+    z-index: 10;
+    top:0;
+    left: 0;
+  }
   svg.canvas{
     position: fixed;
+    z-index: 15;
     top:0;
     left:0;
     width: 100%;
@@ -122,6 +130,7 @@
   <button class="btnText" data-onclick="setTool('text')">文字</button>
   <button class="btnRedo" data-onclick="OPHistory.redo()">Redo</button>
   <button class="btnUndo" data-onclick="OPHistory.undo()">Undo</button>
+  <button class="btnDel" data-onclick="deleteEl()">删除</button>
 </div>
 
 <div class="subtool subtool_curve">
@@ -367,6 +376,13 @@
     window.addEventListener(downE, downFunc )
     window.addEventListener(upE, upFunc )
 
+    function deleteEl (els) {
+      if(els) els.remove();
+      else{
+        $('[data-hl]').remove();
+      }
+    }
+
     function calcDist (a,b) {
       return Math.sqrt( Math.pow(a[0]-b[0], 2) + Math.pow(a[1]-b[1], 2) );
     }
@@ -392,11 +408,25 @@
       if(!str) str="";
       $('#debug').html( ++debugID +" "+ str.replace(/</g, '&lt;').replace(/>/g, '&gt;') );
     }
+
+    function getElementsFromPoint (rectPoint) {
+      var els = [];
+      $('.shape, .textWrap').each( function  (i,v) {
+        var _bb = $(v).data('bbox');
+        var _trans = getTranslateXY(v);
+        if(_bb && _trans){
+          if( rectsIntersect2( rectPoint, _bb, _trans ) ){
+            els.push(v);
+          }
+        }
+      } );
+      return els;
+    }
+
     function downFunc (e) {
       //e.preventDefault();
    	  var evt = /touch/.test(e.type) ? e.touches[0] : e;
 
-      if( !$(evt.target).is('.text')  ) $('.text').blur();
 
    	  var x = evt.pageX;
    	  var y = evt.pageY;
@@ -404,13 +434,21 @@
       var isShape = $(evt.target).hasClass('shape');
       var isText = $(evt.target).closest('.textWrap').size()>0;
 
+
       var targetEl = isText? $(evt.target).closest('.textWrap') : evt.target;
+
+      if( !isText  ) $('.text').blur();
 
       // targetEl = document.elementFromPoint(x,y);
       // isText = $(targetEl).closest('.textWrap').size()>0;
       // targetEl = isText? $(evt.target).closest('.textWrap') : evt.target;
-
-      debug( $('svg').css('z-index')  )
+      //FIX for iPad which cannot select TextElement
+      var el =getElementsFromPoint( [[x,y],[x,y]] );
+      if(el.length){
+        //debug( x+" "+y+" "+ el[0].tagName + " "+ el.length  )
+        targetEl = el.pop();
+        isText = $(targetEl).closest('.textWrap').size()>0;
+      }
 
    	  downX = evt.pageX;
    	  downY = evt.pageY;
@@ -436,6 +474,7 @@
    	  downTimer = window.setTimeout(function() {
         //we are longclick on shape
         if( isShape || isText ){
+          
      	  	addSelectionList( targetEl );
      	  	dragging = true;
           $('[data-hl]').each(function  (i,v) {
@@ -487,6 +526,16 @@
 
       var targetEl = isText? $(evt.target).closest('.textWrap') : evt.target;
 
+
+      //FIX for iPad which cannot select TextElement
+      var el =getElementsFromPoint( [[x,y],[x,y]] );
+      if(el.length){
+        //debug( x+" "+y+" "+ el[0].tagName + " "+ el.length  )
+        targetEl = el.pop();
+        isText = $(targetEl).closest('.textWrap').size()>0;
+      }
+
+
 	    var dist = downX&&downY && calcDist([downX, downY], [x,y]) || 0;
 
       var buttonDown = ( !isTouch? e.which>0 : e.touches.length>0 );
@@ -505,41 +554,23 @@
 
       if(!dragging && selecting && dist>10){
 
-
-        var svg=document.querySelector('svg.canvas');
-        var r = svg.createSVGRect();
-
+        var r = {};
         r.width = Math.abs(dx);
         r.height = Math.abs(dy);
         r.x = dx>0? downX : downX+dx;
         r.y = dy>0? downY : downY+dy;
 
-         $('svg.canvas').addClass('selectState');
+        $('svg.canvas').addClass('selectState');
         $('#selrect').show().attr({x:r.x, y:r.y, width:r.width, height:r.height});
 
         $('.shape, .textWrap').filter(function(i,v){ return $(this).attr('newHL') }).data('hl', null);
 
-        var els = svg.getIntersectionList(r, null);
-        els.forEach(function(v){
-          //if( $(v).hasClass('shape') ) addSelectionList(v, true);
-        });
+        var els = getElementsFromPoint([[downX,downY],[x,y]]);
 
+        els.forEach(function  (v) {
+          
+            if(! $(this).data('hl') ) addSelectionList(v, true);
 
-        $('.textWrap,.shape').each(function  () {
-          var bbox = $(this).data('bbox');
-          var trans = getTranslateXY(this);
-          var startPoint = bbox[0];
-          var endPoint = bbox[1];
-          var x = Math.min(startPoint[0], endPoint[0]) + trans[0];
-          var y = Math.min(startPoint[1], endPoint[1]) + trans[1];
-          var w = Math.abs( startPoint[0] - endPoint[0] );
-          var h = Math.abs( startPoint[1] - endPoint[1] );
-          var isInterSect = rectsIntersect2( r,  { x:x, y:y, width:w,  height:h } );
-          if(isInterSect){
-            if(! $(this).data('hl') ) addSelectionList(this, true);
-          }else{
-            removeSelectionList(this, true);
-          }
         })
 
 
@@ -661,6 +692,15 @@
       var dist = downX&&downY && calcDist([downX, downY], [x,y]) || 0;
       downX=downY=null;
       clearTimeout(downTimer);
+
+      //FIX for iPad which cannot select TextElement
+      var el =getElementsFromPoint( [[x,y],[x,y]] );
+      if(el.length){
+        //debug( x+" "+y+" "+ el[0].tagName + " "+ el.length  )
+        targetEl = el.pop();
+        isText = $(targetEl).closest('.textWrap').size()>0;
+      }
+
 
       enableSelection($('.text'));
 
@@ -1170,6 +1210,7 @@
 
     function getTranslateXY(obj)
     {
+        if(!obj) return [0,0];
        if(obj.size) obj=obj.get(0);
         var style = obj.style,
         transform = style.transform || style.webkitTransform || style.mozTransform;
@@ -1351,21 +1392,39 @@ var snapToAngle = function (x1, y1, x2, y2) {
 
 /**
  * Check if two rectangles (BBoxes objects) intersect each other
- * @param {SVGRect} r1 - The first BBox-like object
- * @param {SVGRect} r2 - The second BBox-like object
+ * @param {SVGRect} testPoints - The first BBox-like object, [[x1,y1], [x2,y2]]
+ * @param {SVGRect} bbox - The second BBox-like object, [[x1,y1], [x2,y2]]
+ * @param {SVGRect} trans - translate, [x,y]
  * @returns {boolean} True if rectangles intersect
  */
-var rectsIntersect2 = function (r1, r2) {
+var rectsIntersect2 = function (testPoints, bbox, trans) {
+
+  var r1={}, r2={};
+
+  var startPoint = bbox[0];
+  var endPoint = bbox[1];
+  r2.x = Math.min(startPoint[0], endPoint[0]) + trans[0];
+  r2.y = Math.min(startPoint[1], endPoint[1]) + trans[1];
+  r2.width = Math.abs( startPoint[0] - endPoint[0] );
+  r2.height = Math.abs( startPoint[1] - endPoint[1] );  
+
+  var startPoint = testPoints[0];
+  var endPoint = testPoints[1];
+  r1.x = Math.min(startPoint[0], endPoint[0]);
+  r1.y = Math.min(startPoint[1], endPoint[1]);
+  r1.width = Math.abs( startPoint[0] - endPoint[0] );
+  r1.height = Math.abs( startPoint[1] - endPoint[1] );  
+
   return r2.x < (r1.x + r1.width) &&
     (r2.x + r2.width) > r1.x &&
     r2.y < (r1.y + r1.height) &&
     (r2.y + r2.height) > r1.y;
 };
-var rectsIntersect = function (p1, p2, p3, p4) {
-  return p3[0]<p2[0]&&
-    p4[0]>p1[0] &&
-    p3[1]<p2[1] &&
-    p4[1]>p1[1];
+var rectsIntersect = function (r1, r2) {
+  return r2.x < (r1.x + r1.width) &&
+    (r2.x + r2.width) > r1.x &&
+    r2.y < (r1.y + r1.height) &&
+    (r2.y + r2.height) > r1.y;
 };
 
 
