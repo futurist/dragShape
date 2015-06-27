@@ -192,7 +192,7 @@
     var textEditing = false;
     var selectedList = [];
     var curTool = null;
-    var prevFocus = null;
+    var prevEl = null;
 
     var isTouch = ('ontouchstart' in window) || ('DocumentTouch' in window && document instanceof DocumentTouch);
     var downE = isTouch? 'touchstart' :'mousedown';
@@ -423,6 +423,13 @@
       return els;
     }
 
+    function beginDrag () {
+       dragging = true;
+      $('[data-hl]').each(function  (i,v) {
+        $(v).attr('data-oldTrans', getTranslateXY(v).join(',') );
+      });
+    }
+
     function downFunc (e) {
       //e.preventDefault();
    	  var evt = /touch/.test(e.type) ? e.touches[0] : e;
@@ -452,6 +459,7 @@
 
    	  downX = evt.pageX;
    	  downY = evt.pageY;
+      clearTimeout(downTimer);
 
       if( (e.shiftKey||e.ctrlKey) && (isShape||isText) && !drawing && !dragging  ) {
         var d = $(targetEl).data('hl');
@@ -459,27 +467,35 @@
         return;
       }
 
-      if(e.timeStamp - prevTime<500 && $(targetEl).is('svg.canvas') ){
-        selecting=true;
-        $('svg.canvas').addClass('selectState');
+
+      //** DOUBLE CLICK event on canvas or element
+      //******************************************
+      if(e.timeStamp - prevTime<500 && prevEl && $(prevEl).get(0) == $(targetEl).get(0)  ){
         prevTime = 0;
+        if( $(targetEl).is('svg.canvas') ) {
+          selecting=true;
+          $('svg.canvas').addClass('selectState');
+        } else if(isShape) {
+          $(targetEl).data('hl', 1);
+          beginDrag();
+        } else if(isText){
+          textEditMode(targetEl);
+        }
         return;
       }
 
       prevTime = e.timeStamp;
-      clearTimeout(downTimer);
+      prevEl = targetEl;
 
    	  // long click to trigger dragging mode && selecting mode
-      if(!selecting )
+      if(!selecting && !dragging && !drawing )
    	  downTimer = window.setTimeout(function() {
         //we are longclick on shape
         if( isShape || isText ){
-          
+
      	  	addSelectionList( targetEl );
-     	  	dragging = true;
-          $('[data-hl]').each(function  (i,v) {
-            $(v).attr('data-oldTrans', getTranslateXY(v).join(',') );
-          });
+     	  	beginDrag();
+
         }else{
           //we are longclick on SVG, selection mode
           downTimer = window.setTimeout(function() {
@@ -491,10 +507,7 @@
 
    	  if( $(targetEl).data('hl') ){
 
-   	  	dragging = true;
-   	  	$('[data-hl]').each(function  (i,v) {
-          $(v).attr('data-oldTrans', getTranslateXY(v).join(',') );
-        });
+   	  	beginDrag();
 
    	  } else {
 
@@ -568,7 +581,7 @@
         var els = getElementsFromPoint([[downX,downY],[x,y]]);
 
         els.forEach(function  (v) {
-          
+
             if(! $(this).data('hl') ) addSelectionList(v, true);
 
         })
@@ -705,9 +718,7 @@
       enableSelection($('.text'));
 
       if(isText && dist<10 && !$(targetEl).data('hl') ){
-         $('[data-hl]').data('hl',null);
-         $(targetEl).find('.bbox').hide();
-         $(targetEl).find('.text').focus();
+         textEditMode(targetEl);
       }
 
 
@@ -791,6 +802,13 @@
 
       }
 
+    }
+
+
+    function textEditMode (targetEl) {
+      $('[data-hl]').data('hl',null);
+     $(targetEl).find('.bbox').hide();
+     $(targetEl).find('.text').focus();
     }
 
 
@@ -1406,14 +1424,14 @@ var rectsIntersect2 = function (testPoints, bbox, trans) {
   r2.x = Math.min(startPoint[0], endPoint[0]) + trans[0];
   r2.y = Math.min(startPoint[1], endPoint[1]) + trans[1];
   r2.width = Math.abs( startPoint[0] - endPoint[0] );
-  r2.height = Math.abs( startPoint[1] - endPoint[1] );  
+  r2.height = Math.abs( startPoint[1] - endPoint[1] );
 
   var startPoint = testPoints[0];
   var endPoint = testPoints[1];
   r1.x = Math.min(startPoint[0], endPoint[0]);
   r1.y = Math.min(startPoint[1], endPoint[1]);
   r1.width = Math.abs( startPoint[0] - endPoint[0] );
-  r1.height = Math.abs( startPoint[1] - endPoint[1] );  
+  r1.height = Math.abs( startPoint[1] - endPoint[1] );
 
   return r2.x < (r1.x + r1.width) &&
     (r2.x + r2.width) > r1.x &&
