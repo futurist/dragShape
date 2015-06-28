@@ -229,12 +229,19 @@
       }
     }
 
+    function NewID () {
+      return +new Date()+Math.random();
+    }
 
 
     function init () {
       setTool('curve');
       var pos = $('svg.canvas').offset();
       $('#textCon').css({ left:pos.left+'px', top:pos.top+'px', width:0+'px', height:0+'px' });
+
+      $('svg.canvas').data('id', NewID() );
+      $('#svgCon').data('id', NewID() );
+      $('#textCon').data('id', NewID() );
     }
     init();
 
@@ -470,7 +477,8 @@
 
       //** DOUBLE CLICK event on canvas or element
       //******************************************
-      if(e.timeStamp - prevTime<500 && prevEl && $(prevEl).get(0) == $(targetEl).get(0)  ){
+
+      if(e.timeStamp - prevTime<500 && prevEl && $(prevEl).data('id') == $(targetEl).data('id')  ){
         prevTime = 0;
         if( $(targetEl).is('svg.canvas') ) {
           selecting=true;
@@ -481,11 +489,12 @@
         } else if(isText){
           textEditMode(targetEl);
         }
+        prevEl = targetEl;
         return;
       }
 
-      prevTime = e.timeStamp;
       prevEl = targetEl;
+      prevTime = e.timeStamp;
 
    	  // long click to trigger dragging mode && selecting mode
       if(!selecting && !dragging && !drawing )
@@ -740,7 +749,7 @@
 
     	if(dragging){
     		dragging=false;
-        svgHistory.update();
+        if(dist) svgHistory.update();
         return;
     	}
 
@@ -855,6 +864,7 @@
   var svgHistory = new function(html) {
     var self = this;
     this.html = $('#svgCon').html();
+    this.texthtml = $('#textCon').html();
 
     //here is an action we cant to be able to undo/redo
     this.update = function() {
@@ -863,18 +873,29 @@
         var oldHtml = self.html;
         var newHtml = $('#svgCon').html();
 
+        var oldTextHtml = self.texthtml;
+        var newTextHtml = $('#textCon').html();
+
+        if( oldHtml==newHtml && oldTextHtml==newTextHtml ) return;
+
         //self function sets up the action and performs it
         OPHistory.do(
             //the 'do' or 'redo' function
             function() {
               self.html = newHtml;
               $('#svgCon').html(newHtml);
+
+              self.texthtml = newTextHtml;
+              $('#textCon').html(newTextHtml);
             },
 
             //the 'undo' function
             function() {
               self.html = oldHtml;
-                $('#svgCon').html(oldHtml);
+              $('#svgCon').html(oldHtml);
+
+              self.texthtml = oldTextHtml;
+              $('#textCon').html(oldTextHtml);
         });
       }
   }
@@ -1009,6 +1030,29 @@
 
     }
 
+
+    function setupTextEvent(){
+      var textCon = $('#textCon');
+      textCon.on("focus", ".text", function  () {
+        $(this).addClass('editing');
+      }).on("blur", ".text", function  (e) {
+        $(this).parent().find('.bbox').show();
+        setTimeout(function  () {
+          $(e.target).removeClass('editing');
+        }, 300);
+      });
+      textCon.on("change", ".text", function  (e) {
+        if( $(this).html()!=$(this).val() ){
+          $(this).html( $(this).val() );
+        }
+        setTimout(function(){ svgHistory.update(); }, 100);
+      });
+    }
+    setupTextEvent();
+
+
+
+
     function createText (startPoint, endPoint, path, options) {
 
       if(!options) options = ToolSet['text'];
@@ -1031,7 +1075,7 @@
       path.css({"left":x, "top":y});
       text.css({ "width":w, "height":h, "color":options.fill, "font-family": options['font-family'], "font-size": options['font-size'] });
 
-      text.val( "TEOWTIJIO" );
+      text.html( "TEOWTIJIO" );
 
       var offset = text.offset();
       var bbox = [ [offset.left, offset.top], [offset.left+offset.width, offset.top+offset.height] ];
@@ -1052,14 +1096,7 @@
       path.attr("data-endpoint", JSON.stringify( endPoint ) );
       path.attr("data-options", JSON.stringify( options ) );
 
-      text.on("focus", function  () {
-        $(this).addClass('editing');
-      }).on("blur", function  (e) {
-        $(this).parent().find('.bbox').show();
-        setTimeout(function  () {
-          $(e.target).removeClass('editing');
-        }, 300);
-      });
+
 
       /*  // dblclick to trigger
       path.on('dblclick', function () {
@@ -1201,6 +1238,7 @@
       $(el).attr('data-oldTrans', getTranslateXY(el).join(',') );
       if(isNew) $(el).get(0).setAttribute('newHL', 1);
       updateToolBox();
+      svgHistory.update();
     }
 
     function removeSelectionList (el, isNew) {
