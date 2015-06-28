@@ -5,6 +5,10 @@
   <title></title>
 <style type="text/css">
 
+  html, body {
+    overflow:hidden;
+  }
+
   .hidden{
     display:none;
   }
@@ -168,7 +172,7 @@
 </div>
 
 
-<div id="debug" style="position:fixed; top:0; left:0; z-index:99999999999"></div>
+<div id="debug" style="position:fixed; top:100px; left:0; z-index:99999999999"></div>
 
   <script type="text/javascript" src='undoredo.js'></script>
 
@@ -189,7 +193,7 @@
     var drawing = false;
     var dragging = false;
     var selecting = false;
-    var textEditing = false;
+    var textEditingID = 0;
     var selectedList = [];
     var curTool = null;
     var prevEl = null;
@@ -242,6 +246,14 @@
       $('svg.canvas').data('id', NewID() );
       $('#svgCon').data('id', NewID() );
       $('#textCon').data('id', NewID() );
+
+      $(window).on(
+        'touchmove',
+         function(e) {
+          e.preventDefault();
+        }
+      );
+
     }
     init();
 
@@ -383,6 +395,7 @@
     window.addEventListener(downE, downFunc )
     window.addEventListener(upE, upFunc )
 
+
     function deleteEl (els) {
       if(els) els.remove();
       else{
@@ -413,6 +426,7 @@
     var debugID=0;
     function debug (str) {
       if(!str) str="";
+      str+="";
       $('#debug').html( ++debugID +" "+ str.replace(/</g, '&lt;').replace(/>/g, '&gt;') );
     }
 
@@ -438,8 +452,8 @@
     }
 
     function downFunc (e) {
-      //e.preventDefault();
    	  var evt = /touch/.test(e.type) ? e.touches[0] : e;
+
 
 
    	  var x = evt.pageX;
@@ -451,7 +465,6 @@
 
       var targetEl = isText? $(evt.target).closest('.textWrap') : evt.target;
 
-      if( !isText  ) $('.text').blur();
 
       // targetEl = document.elementFromPoint(x,y);
       // isText = $(targetEl).closest('.textWrap').size()>0;
@@ -464,9 +477,18 @@
         isText = $(targetEl).closest('.textWrap').size()>0;
       }
 
+      if( !$(targetEl).find('.text').hasClass('editing')  ) $('.text').blur();
+
+      if( $('.editing').size() ){
+        return;
+      }
+      e.preventDefault();
+
    	  downX = evt.pageX;
    	  downY = evt.pageY;
       clearTimeout(downTimer);
+
+
 
       if( (e.shiftKey||e.ctrlKey) && (isShape||isText) && !drawing && !dragging  ) {
         var d = $(targetEl).data('hl');
@@ -534,10 +556,13 @@
     function moveFunc(e)
     {
 
-      e.preventDefault();
       var evt = /touch/.test(e.type) ? e.touches[0] : e;
 
       //if( ! $(evt.target).closest('.canvas').size() ) return;
+      if( $('.editing').size() ){
+        return;
+      }
+      e.preventDefault();
 
       var x = evt.pageX;
       var y = evt.pageY;
@@ -556,7 +581,6 @@
         targetEl = el.pop();
         isText = $(targetEl).closest('.textWrap').size()>0;
       }
-
 
 	    var dist = downX&&downY && calcDist([downX, downY], [x,y]) || 0;
 
@@ -701,8 +725,12 @@
     function upFunc (e) {
 
     	//init
-    	//e.preventDefault();
     	var evt = /touch/.test(e.type) ? e.changedTouches[0] : e;
+
+      if( $('.editing').size() ){
+        return;
+      }
+      e.preventDefault();
 
       var isShape = $(evt.target).hasClass('shape');
       var isText = $(evt.target).closest('.textWrap').size()>0;
@@ -722,7 +750,6 @@
         targetEl = el.pop();
         isText = $(targetEl).closest('.textWrap').size()>0;
       }
-
 
       enableSelection($('.text'));
 
