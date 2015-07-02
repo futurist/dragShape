@@ -477,7 +477,7 @@
         isText = $(targetEl).closest('.textWrap').size()>0;
       }
 
-      if( !$(targetEl).find('.text').hasClass('editing')  ) $('.text').blur();
+      if( !$(targetEl).hasClass('editing')  ) $('.text').blur();
 
       if( $('.editing').size() ){
         return;
@@ -844,6 +844,9 @@
     function textEditMode (targetEl) {
       $('[data-hl]').data('hl',null);
      $(targetEl).find('.bbox').hide();
+     $(targetEl).append('<textarea class="text textarea"></textarea>');
+     console.log(333);
+     $(targetEl).find('.textarea').html( $(targetEl).find('.text').html() );
      $(targetEl).find('.text').focus();
     }
 
@@ -1060,19 +1063,27 @@
 
     function setupTextEvent(){
       var textCon = $('#textCon');
-      textCon.on("focus", ".text", function  () {
-        $(this).addClass('editing');
-      }).on("blur", ".text", function  (e) {
-        $(this).parent().find('.bbox').show();
+      textCon.on("focus", ".textarea", function  (e) {
+        if( $('.editing').size() )return;
+        $(this).parent().find('.bbox, .textholder').hide();
+        $(this).parent().addClass('editing');
+        console.log(1111);
+      }).on("blur", ".textarea", function  (e) {
+        console.log(2222);
+        $(this).parent().find('.bbox, .textholder').show();
+        $(e.target).parent().removeClass('editing');
+        $(e.target).remove();
+
+        setTimeout(function(){ svgHistory.update(); }, 100);
         setTimeout(function  () {
-          $(e.target).removeClass('editing');
+
         }, 300);
       });
-      textCon.on("change", ".text", function  (e) {
-        if( $(this).html()!=$(this).val() ){
-          $(this).html( $(this).val() );
+      textCon.on("change, keyup", ".textarea", function  (e) {
+        if( $(this).parent().find('.textholder').html()!=$(this).val() ){
+          $(this).parent().find('.textholder').html( $(this).val() );
         }
-        setTimout(function(){ svgHistory.update(); }, 100);
+
       });
     }
     setupTextEvent();
@@ -1085,7 +1096,7 @@
       if(!options) options = ToolSet['text'];
 
       if(!path){
-        path = $('<div class="textWrap"><textarea class="text"></textarea></div>');
+        path = $('<div class="textWrap"><div class="text textholder"></div></div>');
         curShapeID = +new Date+Math.random();
         $('#textCon').append( path );
         path.attr("data-id", curShapeID );
