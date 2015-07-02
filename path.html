@@ -86,7 +86,7 @@
   }
   .bbox{
     position: absolute;
-    z-index: 9999999999;
+    z-index: 9999999;
     background-color: rgba(255,0,0,0.5);
   }
   [data-hl] .bbox{
@@ -94,6 +94,10 @@
   }
   .handler{
 
+  }
+  .textarea{
+    position: absolute;
+    z-index: 999999999;
   }
 
 </style>
@@ -477,7 +481,7 @@
         isText = $(targetEl).closest('.textWrap').size()>0;
       }
 
-      if( !$(targetEl).hasClass('editing')  ) $('.text').blur();
+      if( !$(targetEl).hasClass('editing')  ) $('.textarea').blur();
 
       if( $('.editing').size() ){
         return;
@@ -508,7 +512,7 @@
         } else if(isShape) {
           $(targetEl).data('hl', 1);
           beginDrag();
-        } else if(isText){
+        } else if(isText && !e.shiftKey) {
           textEditMode(targetEl);
         }
         prevEl = targetEl;
@@ -534,7 +538,7 @@
             $('svg.canvas').addClass('selectState');
           },100);
         }
-   	  }, 200);
+   	  }, 0);
 
    	  if( $(targetEl).data('hl') ){
 
@@ -592,13 +596,13 @@
       }
 
 
-      if( !isText && dist>10  )  disableSelection($('.text'));
+      if( !isText && dist>10  )  disableSelection($('.textarea'));
 
       if(!drawing && !dragging && $('[data-hl]').size() && e.shiftKey && buttonDown ){
         selecting = true;
       }
 
-      if(!dragging && selecting && dist>10){
+      if(!dragging && selecting && buttonDown && dist>10){
 
         var r = {};
         r.width = Math.abs(dx);
@@ -615,7 +619,7 @@
 
         els.forEach(function  (v) {
 
-            if(! $(this).data('hl') ) addSelectionList(v, true);
+            if(! $(this).data('hl') ) addSelectionList(v);
 
         })
 
@@ -751,9 +755,9 @@
         isText = $(targetEl).closest('.textWrap').size()>0;
       }
 
-      enableSelection($('.text'));
+      enableSelection($('.textarea'));
 
-      if(isText && dist<10 && !$(targetEl).data('hl') ){
+      if(isText && !e.shiftKey && dist<10 && !$(targetEl).data('hl') ){
          textEditMode(targetEl);
       }
 
@@ -840,14 +844,29 @@
 
     }
 
+    function pointsToRect (startPoint, endPoint, translate) {
+      if(!translate) translate = [0,0];
+      var x = Math.min(startPoint[0], endPoint[0]) + translate[0] ;
+      var y = Math.min(startPoint[1], endPoint[1]) + translate[1];
+      var w = Math.abs( startPoint[0] - endPoint[0] );
+      var h = Math.abs( startPoint[1] - endPoint[1] );
+      return {left:x, top:y, width:w, height:h};
+    }
+
 
     function textEditMode (targetEl) {
       $('[data-hl]').data('hl',null);
-     $(targetEl).find('.bbox').hide();
-     $(targetEl).append('<textarea class="text textarea"></textarea>');
-     console.log(333);
-     $(targetEl).find('.textarea').html( $(targetEl).find('.text').html() );
-     $(targetEl).find('.text').focus();
+      $(targetEl).addClass('editing').hide();
+      var box = $(targetEl).data('bbox');
+      var offset = pointsToRect(box[0], box[1], getTranslateXY(targetEl) );
+     $('body').append('<textarea class="text textarea"></textarea>');
+     $('.textarea')
+       .data('targetId', $(targetEl)
+        .data('id') ).css(offset)
+       .html( $(targetEl)
+        .find('.text').html() )
+       .focus();
+
     }
 
 
@@ -1062,29 +1081,18 @@
 
 
     function setupTextEvent(){
-      var textCon = $('#textCon');
+      var textCon = $('body');
       textCon.on("focus", ".textarea", function  (e) {
         if( $('.editing').size() )return;
-        $(this).parent().find('.bbox, .textholder').hide();
-        $(this).parent().addClass('editing');
-        console.log(1111);
       }).on("blur", ".textarea", function  (e) {
-        console.log(2222);
-        $(this).parent().find('.bbox, .textholder').show();
-        $(e.target).parent().removeClass('editing');
+        $('.editing').find('.text').html( $(this).val() );
+        $('.editing').removeClass('editing').show();
         $(e.target).remove();
 
         setTimeout(function(){ svgHistory.update(); }, 100);
-        setTimeout(function  () {
-
-        }, 300);
-      });
-      textCon.on("change, keyup", ".textarea", function  (e) {
-        if( $(this).parent().find('.textholder').html()!=$(this).val() ){
-          $(this).parent().find('.textholder').html( $(this).val() );
-        }
 
       });
+
     }
     setupTextEvent();
 
@@ -1275,6 +1283,7 @@
       $(el).data('hl', 1);
       $(el).attr('data-oldTrans', getTranslateXY(el).join(',') );
       if(isNew) $(el).get(0).setAttribute('newHL', 1);
+      $(el).appendTo( $(el).parent() );
       updateToolBox();
       svgHistory.update();
     }
