@@ -9,6 +9,12 @@
     overflow:hidden;
   }
 
+  h1,h2,h3,h4,h5,h6,
+  pre, p, ul, li{
+    margin: 0;
+    padding: 0;
+  }
+
   .hidden{
     display:none;
   }
@@ -84,6 +90,17 @@
     position: absolute;
     z-index: 99999;
   }
+  .textWrap pre{
+    display: block;
+    width: 100%;
+    height: 100%;
+    white-space: pre-wrap; /* css-3 */
+    white-space: -moz-pre-wrap; /* Mozilla, since 1999 */
+    white-space: -pre-wrap; /* Opera 4-6 */
+    white-space: -o-pre-wrap; /* Opera 7 */
+    word-wrap: break-word; /* Internet Explorer 5.5+ */
+    overflow: hidden;
+  }
   .bbox{
     position: absolute;
     z-index: 9999999;
@@ -93,7 +110,10 @@
     background-color: rgba(255,255,0,0.5);
   }
   .handler{
-
+    position: absolute;
+    width: 44px;
+    height: 44px;
+    background: red;
   }
   .textarea{
     position: absolute;
@@ -480,7 +500,8 @@
         targetEl = el.pop();
         isText = $(targetEl).closest('.textWrap').size()>0;
       }
-
+      var isHandler = isText && $(evt.target).hasClass('handler');
+      
       if( !$(targetEl).hasClass('editing')  ) $('.textarea').blur();
 
       if( $('.editing').size() ){
@@ -586,6 +607,8 @@
         isText = $(targetEl).closest('.textWrap').size()>0;
       }
 
+      var isHandler = isText && $(evt.target).hasClass('handler');
+      
 	    var dist = downX&&downY && calcDist([downX, downY], [x,y]) || 0;
 
       var buttonDown = ( !isTouch? e.which>0 : e.touches.length>0 );
@@ -602,7 +625,7 @@
         selecting = true;
       }
 
-      if(!dragging && selecting && buttonDown && dist>10){
+      if(!dragging && selecting && dist>10){
 
         var r = {};
         r.width = Math.abs(dx);
@@ -619,7 +642,7 @@
 
         els.forEach(function  (v) {
 
-            if(! $(this).data('hl') ) addSelectionList(v);
+            if(! $(this).data('hl') ) addSelectionList(v, true);
 
         })
 
@@ -633,19 +656,29 @@
 
       //if(!e.shiftKey)
       if( dragging ){
-	      	$('[data-hl]').each(function  (i,v) {
-            var oldTrans = $(v).attr('data-oldTrans');
-            oldTrans= !oldTrans?[0,0]:oldTrans.split(',');
-            var tx = dx+ ~~oldTrans[0];
-            var ty = dy+ ~~oldTrans[1];
 
-            $(v).attr("transform", "translate("+ tx +","+ ty +")");
+          if( isHandler ){
 
-            $(v).css({ "-webkit-transform": "translate("+ tx +"px,"+ ty +"px)" });
-            $(v).css({ "transform": "translate("+ tx +"px,"+ ty +"px)" });
+            var data = $(targetEl).data('bbox');
+            var offset = pointsToRect(data[0], data[1]);
+            $(targetEl).find('.bbox').css({ width: offset.width+dx, height: offset.height+dy  });
+            $(evt.target).css({ left:offset.width+dx, top:offset.height+dy });
 
-          });
+          } else {
+  	      	$('[data-hl]').each(function  (i,v) {
+              var oldTrans = $(v).attr('data-oldTrans');
+              oldTrans= !oldTrans?[0,0]:oldTrans.split(',');
+              var tx = dx+ ~~oldTrans[0];
+              var ty = dy+ ~~oldTrans[1];
 
+              $(v).attr("transform", "translate("+ tx +","+ ty +")");
+
+              $(v).css({ "-webkit-transform": "translate("+ tx +"px,"+ ty +"px)" });
+              $(v).css({ "transform": "translate("+ tx +"px,"+ ty +"px)" });
+
+            });
+
+          }
 
       }else{
 
@@ -744,7 +777,6 @@
       var x = evt.pageX;
       var y = evt.pageY;
       var dist = downX&&downY && calcDist([downX, downY], [x,y]) || 0;
-      downX=downY=null;
       clearTimeout(downTimer);
 
       //FIX for iPad which cannot select TextElement
@@ -754,6 +786,8 @@
         targetEl = el.pop();
         isText = $(targetEl).closest('.textWrap').size()>0;
       }
+      var isHandler = isText && $(evt.target).hasClass('handler');
+      
 
       enableSelection($('.textarea'));
 
@@ -780,11 +814,17 @@
 
     	if(dragging){
     		dragging=false;
+
+        if(isHandler){
+          $(targetEl).data('bbox', JSON.stringify([ [downX,downY], [x,y] ]) );
+        }
+
         if(dist) svgHistory.update();
         return;
     	}
 
 
+      downX=downY=null;
 
       /**
       ******* Dot Text Creation, has many different way, so use dragged Text area instead.
@@ -1104,7 +1144,7 @@
       if(!options) options = ToolSet['text'];
 
       if(!path){
-        path = $('<div class="textWrap"><div class="text textholder"></div></div>');
+        path = $('<div class="textWrap"><pre class="text textholder"></pre></div>');
         curShapeID = +new Date+Math.random();
         $('#textCon').append( path );
         path.attr("data-id", curShapeID );
@@ -1118,25 +1158,21 @@
 
       var text = $(path).find('.text');
 
-      path.css({"left":x, "top":y});
-      text.css({ "width":w, "height":h, "color":options.fill, "font-family": options['font-family'], "font-size": options['font-size'] });
+      path.css({"left":x, "top":y, "width":w, "height":h});
+      text.css({  "color":options.fill, "font-family": options['font-family'], "font-size": options['font-size'] });
 
       text.html( "TEOWTIJIO" );
 
-      var offset = text.offset();
-      var bbox = [ [offset.left, offset.top], [offset.left+offset.width, offset.top+offset.height] ];
-
       var $bbox = $('<div class="bbox"></div>');
       path.append( $bbox );
-      offset.left=offset.top=0;
-      $bbox.css(offset);
+      $bbox.css({"left":0, "top":0, "width":w, "height":h});
 
-      var $hanlder = $('<div class="hanlder"></div>');
-      path.append( $hanlder );
-      $hanlder.css({ left:offset.width, top:offset.height });
+      var $handler = $('<div class="handler"></div>');
+      path.append( $handler );
+      $handler.css({ left:w, top:h });
 
 
-      path.attr("data-bbox", JSON.stringify( bbox ) );
+      path.attr("data-bbox", JSON.stringify( [startPoint, endPoint] ) );
       path.attr("data-tool", 'text' );
       path.attr("data-startpoint", JSON.stringify( startPoint ) );
       path.attr("data-endpoint", JSON.stringify( endPoint ) );
@@ -1283,13 +1319,13 @@
       $(el).data('hl', 1);
       $(el).attr('data-oldTrans', getTranslateXY(el).join(',') );
       if(isNew) $(el).get(0).setAttribute('newHL', 1);
-      $(el).appendTo( $(el).parent() );
+      //$(el).appendTo( $(el).parent() );
       updateToolBox();
-      svgHistory.update();
+      //svgHistory.update();
     }
 
-    function removeSelectionList (el, isNew) {
-      if(isNew){
+    function removeSelectionList (el, onlyNew) {
+      if(onlyNew){
         if( $(el).get(0).getAttribute('newHL') ) $(el).data('hl', null);
       }else{
         $(el).data('hl', null);
