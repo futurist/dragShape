@@ -278,6 +278,8 @@
         }
       );
 
+      startWindowEvent();
+
     }
     init();
 
@@ -415,9 +417,17 @@
       eval(evt.target.dataset.onclick);
     } )
 
-    window.addEventListener(moveE, moveFunc )
-    window.addEventListener(downE, downFunc )
-    window.addEventListener(upE, upFunc )
+    function startWindowEvent(){
+      window.addEventListener(moveE, moveFunc )
+      window.addEventListener(downE, downFunc )
+      window.addEventListener(upE, upFunc )
+    }
+
+    function endWindowEvent(){
+      window.removeEventListener(moveE, moveFunc )
+      window.removeEventListener(downE, downFunc )
+      window.removeEventListener(upE, upFunc )
+    }
 
 
     function deleteEl (els) {
@@ -475,6 +485,54 @@
       });
     }
 
+
+    function setUpHandlerDrag (el) {
+      var optionsSize = {
+        limit: $('#svgCon'),
+        setCursor: 'nwse-resize',
+        setPosition:false,
+        useGPU:true,
+        calcXY: function(me){
+          var target = me.element;
+          var targetEl = $(target.parentNode);
+          var offset = $(targetEl).find('.bbox').offset();
+          console.log(offset);
+          return {
+            left: offset.width,
+            top: offset.height
+          }
+        },
+        onDrag: function (element, dx, dy, e) {
+          var targetEl = $(element.parentNode);
+
+          var data = $(targetEl).data('bbox');
+          var offset = pointsToRect(data[0], data[1]);
+          $(targetEl).find('.bbox').css({ width: dx, height: dy  });
+          $(element).css({ left:dx, top:dy });
+          console.log("drag",dx,dy)
+
+        },
+
+        onDragStart:function  (element, dx, dy, e) {
+          endWindowEvent();
+          console.log("start",dx,dy)
+        },
+        onDragEnd:function  (element, dx, dy, e) {
+          var targetEl = $(element.parentNode);
+          var data = $(targetEl).data('bbox');
+          console.log(dx,dy);
+          data[1][0]+=dx;
+          data[1][1]+=dy;
+          $(targetEl).data('bbox', JSON.stringify(data) );
+          startWindowEvent();
+          console.log("end",dx,dy)
+        }
+      };
+
+      new Draggable(el, optionsSize);
+
+    }
+
     function downFunc (e) {
    	  var evt = /touch/.test(e.type) ? e.touches[0] : e;
 
@@ -501,7 +559,13 @@
         isText = $(targetEl).closest('.textWrap').size()>0;
       }
       var isHandler = isText && $(evt.target).hasClass('handler');
-      
+
+      if(isHandler){
+        setUpHandlerDrag(evt.target);
+        endWindowEvent();
+        return;
+      }
+
       if( !$(targetEl).hasClass('editing')  ) $('.textarea').blur();
 
       if( $('.editing').size() ){
@@ -525,7 +589,7 @@
       //** DOUBLE CLICK event on canvas or element
       //******************************************
 
-      if(e.timeStamp - prevTime<500 && prevEl && $(prevEl).data('id') == $(targetEl).data('id')  ){
+      if(e.timeStamp - prevTime<5 && prevEl && $(prevEl).data('id') == $(targetEl).data('id')  ){
         prevTime = 0;
         if( $(targetEl).is('svg.canvas') ) {
           selecting=true;
@@ -557,7 +621,7 @@
           downTimer = window.setTimeout(function() {
             selecting=true;
             $('svg.canvas').addClass('selectState');
-          },100);
+          },300);
         }
    	  }, 0);
 
@@ -608,7 +672,7 @@
       }
 
       var isHandler = isText && $(evt.target).hasClass('handler');
-      
+
 	    var dist = downX&&downY && calcDist([downX, downY], [x,y]) || 0;
 
       var buttonDown = ( !isTouch? e.which>0 : e.touches.length>0 );
@@ -659,10 +723,6 @@
 
           if( isHandler ){
 
-            var data = $(targetEl).data('bbox');
-            var offset = pointsToRect(data[0], data[1]);
-            $(targetEl).find('.bbox').css({ width: offset.width+dx, height: offset.height+dy  });
-            $(evt.target).css({ left:offset.width+dx, top:offset.height+dy });
 
           } else {
   	      	$('[data-hl]').each(function  (i,v) {
@@ -777,6 +837,8 @@
       var x = evt.pageX;
       var y = evt.pageY;
       var dist = downX&&downY && calcDist([downX, downY], [x,y]) || 0;
+      downX=downY=null;
+
       clearTimeout(downTimer);
 
       //FIX for iPad which cannot select TextElement
@@ -787,7 +849,7 @@
         isText = $(targetEl).closest('.textWrap').size()>0;
       }
       var isHandler = isText && $(evt.target).hasClass('handler');
-      
+
 
       enableSelection($('.textarea'));
 
@@ -816,7 +878,7 @@
     		dragging=false;
 
         if(isHandler){
-          $(targetEl).data('bbox', JSON.stringify([ [downX,downY], [x,y] ]) );
+
         }
 
         if(dist) svgHistory.update();
@@ -824,7 +886,6 @@
     	}
 
 
-      downX=downY=null;
 
       /**
       ******* Dot Text Creation, has many different way, so use dragged Text area instead.
