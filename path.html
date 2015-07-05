@@ -100,11 +100,12 @@
     white-space: -o-pre-wrap; /* Opera 7 */
     word-wrap: break-word; /* Internet Explorer 5.5+ */
     overflow: hidden;
+    padding-left:3px;
   }
   .bbox{
     position: absolute;
     z-index: 9999999;
-    background-color: rgba(255,0,0,0.5);
+    background-color: rgba(255,0,0,0.01);
   }
   [data-hl] .bbox{
     background-color: rgba(255,255,0,0.5);
@@ -119,6 +120,17 @@
   .textarea{
     position: absolute;
     z-index: 999999999;
+    background: rgba(255,0,0,0.5);
+    -webkit-appearance:none;
+    -webkit-border-radius:0px;
+    -webkit-border-fit:border !important;
+
+    padding-left: 3px;
+    border: none;
+    overflow: hidden;
+    outline: none;
+    margin: 0;
+    padding: 0;
   }
 
 </style>
@@ -1011,31 +1023,7 @@
     }
 
 
-    function textEditMode (targetEl) {
-      $('[data-hl]').data('hl',null);
-      $(targetEl).addClass('editing').hide();
-      var box = $(targetEl).data('bbox');
-      var offset = pointsToRect(box[0], box[1], getTranslateXY(targetEl) );
-     $('body').append('<textarea class="text textarea"></textarea>');
-     $('body').append('<div class="handler"></div>');
-
-     var offset2 = { left:offset.left+offset.width, top:offset.top+offset.height } ;
-
-     $('.handler')
-      .data('targetId', $(targetEl).data('id') )
-      .css(offset2);
-
-
-     $('.textarea')
-       .data('targetId', $(targetEl).data('id') )
-       .css(offset)
-       .html( $(targetEl)
-        .find('.text').html() )
-       .focus();
-
-    }
-
-
+    
     window.addEventListener('keydown', handleShortKey);
 
     function handleShortKey (evt) {
@@ -1285,11 +1273,37 @@
     setupTextEvent();
 
 
+  function textEditMode (targetEl) {
+      $('[data-hl]').data('hl',null);
+      $(targetEl).addClass('editing').hide();
+      var box = $(targetEl).data('bbox');
+      var offset = pointsToRect(box[0], box[1], getTranslateXY(targetEl) );
+     $('body').append('<textarea class="text textarea"></textarea>');
+     $('body').append('<div class="handler"></div>');
+
+     var offset2 = { left:offset.left+offset.width, top:offset.top+offset.height } ;
+
+     $('.handler')
+      .data('targetId', $(targetEl).data('id') )
+      .css(offset2);
+
+     var style =  $(targetEl).find('.text').get(0).style;
+
+     $('.textarea')
+       .data('targetId', $(targetEl).data('id') )
+       .css(offset).css({ 'font-family': style['font-family'], 'font-size':style['font-size'] })
+       .html( $(targetEl)
+        .find('.text').html() )
+       .focus();
+
+    }
+
 
 
     function createText (startPoint, endPoint, path, options) {
 
       if(!options) options = ToolSet['text'];
+      var isCeate = !path;
 
       if(!path){
         path = $('<div class="textWrap"><pre class="text textholder"></pre></div>');
@@ -1309,7 +1323,6 @@
       path.css({"left":x, "top":y, "width":w, "height":h});
       text.css({  "color":options.fill, "font-family": options['font-family'], "font-size": options['font-size'] });
 
-      text.html( "TEOWTIJIO" );
 
       var $bbox = $('<div class="bbox"></div>');
       path.append( $bbox );
@@ -1323,6 +1336,13 @@
       path.attr("data-options", JSON.stringify( options ) );
 
 
+      if(isCeate){
+        text.html( "" );
+        textEditMode(path);
+        console.log(234);
+      } else {
+
+      }
 
       /*  // dblclick to trigger
       path.on('dblclick', function () {
