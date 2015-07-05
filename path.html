@@ -114,6 +114,7 @@
     width: 44px;
     height: 44px;
     background: red;
+    z-index: 999999999;
   }
   .textarea{
     position: absolute;
@@ -558,24 +559,30 @@
         targetEl = el.pop();
         isText = $(targetEl).closest('.textWrap').size()>0;
       }
-      var isHandler = isText && $(evt.target).hasClass('handler');
+      var isHandler = $(evt.target).hasClass('handler');
+
+
+   	  downX = evt.pageX;
+   	  downY = evt.pageY;
+      clearTimeout(downTimer);
 
       if(isHandler){
-        setUpHandlerDrag(evt.target);
-        endWindowEvent();
+        $('.handler').addClass('dragHandler');
+        $('.textarea').data('offset', JSON.stringify( $('.textarea').offset() ) );
+        $('.handler').data('offset', JSON.stringify( $('.handler').offset() ) );
+        dragging = true;
         return;
       }
 
-      if( !$(targetEl).hasClass('editing')  ) $('.textarea').blur();
+
+      if( $('.textarea').size() && !isText && !isHandler ) {
+        onTextBlur();
+      }
 
       if( $('.editing').size() ){
         return;
       }
       e.preventDefault();
-
-   	  downX = evt.pageX;
-   	  downY = evt.pageY;
-      clearTimeout(downTimer);
 
 
 
@@ -589,9 +596,9 @@
       //** DOUBLE CLICK event on canvas or element
       //******************************************
 
-      if(e.timeStamp - prevTime<5 && prevEl && $(prevEl).data('id') == $(targetEl).data('id')  ){
+      if(e.timeStamp - prevTime<500 && prevEl && $(prevEl).data('id') == $(targetEl).data('id')  ){
         prevTime = 0;
-        if( $(targetEl).is('svg.canvas') ) {
+        if( false && $(targetEl).is('svg.canvas') ) {
           selecting=true;
           $('svg.canvas').addClass('selectState');
         } else if(isShape) {
@@ -648,9 +655,7 @@
       var evt = /touch/.test(e.type) ? e.touches[0] : e;
 
       //if( ! $(evt.target).closest('.canvas').size() ) return;
-      if( $('.editing').size() ){
-        return;
-      }
+
       e.preventDefault();
 
       var x = evt.pageX;
@@ -671,11 +676,35 @@
         isText = $(targetEl).closest('.textWrap').size()>0;
       }
 
-      var isHandler = isText && $(evt.target).hasClass('handler');
-
-	    var dist = downX&&downY && calcDist([downX, downY], [x,y]) || 0;
+      var dist = downX&&downY && calcDist([downX, downY], [x,y]) || 0;
 
       var buttonDown = ( !isTouch? e.which>0 : e.touches.length>0 );
+
+      var isHandler = $(evt.target).hasClass('handler');
+
+      if( $('.dragHandler').size() && dist && buttonDown) {
+        $('.handler').addClass('dragHandler');
+
+
+
+        var dataoffset = $('.handler').data('offset') ;
+
+        dataoffset.left += dx;
+        dataoffset.top += dy;
+        $('.handler').offset(dataoffset);
+
+        dataoffset2 = $('.textarea').data('offset') ;
+
+        dataoffset2.width = dataoffset.left - dataoffset2.left;
+        dataoffset2.height = dataoffset.top - dataoffset2.top;
+        $('.textarea').css({ width:dataoffset2.width, height:dataoffset2.height });
+
+      }
+
+      if( $('.editing').size() ){
+
+        return;
+      }
 
       if( dist>10 ){
         prevTime = 0;
@@ -685,37 +714,39 @@
 
       if( !isText && dist>10  )  disableSelection($('.textarea'));
 
-      if(!drawing && !dragging && $('[data-hl]').size() && e.shiftKey && buttonDown ){
-        selecting = true;
+      if(!dragging){
+
+          if(!drawing && $('[data-hl]').size() && e.shiftKey && buttonDown ){
+            selecting = true;
+          }
+
+          if( selecting && dist>10){
+
+            var r = {};
+            r.width = Math.abs(dx);
+            r.height = Math.abs(dy);
+            r.x = dx>0? downX : downX+dx;
+            r.y = dy>0? downY : downY+dy;
+
+            $('svg.canvas').addClass('selectState');
+            $('#selrect').show().attr({x:r.x, y:r.y, width:r.width, height:r.height});
+
+            $('.shape, .textWrap').filter(function(i,v){ return $(this).attr('newHL') }).data('hl', null);
+
+            var els = getElementsFromPoint([[downX,downY],[x,y]]);
+
+            els.forEach(function  (v) {
+
+                if(! $(this).data('hl') ) addSelectionList(v, true);
+
+            })
+
+
+            return;
+
+          }
+
       }
-
-      if(!dragging && selecting && dist>10){
-
-        var r = {};
-        r.width = Math.abs(dx);
-        r.height = Math.abs(dy);
-        r.x = dx>0? downX : downX+dx;
-        r.y = dy>0? downY : downY+dy;
-
-        $('svg.canvas').addClass('selectState');
-        $('#selrect').show().attr({x:r.x, y:r.y, width:r.width, height:r.height});
-
-        $('.shape, .textWrap').filter(function(i,v){ return $(this).attr('newHL') }).data('hl', null);
-
-        var els = getElementsFromPoint([[downX,downY],[x,y]]);
-
-        els.forEach(function  (v) {
-
-            if(! $(this).data('hl') ) addSelectionList(v, true);
-
-        })
-
-
-        return;
-
-      }
-
-
 
 
       //if(!e.shiftKey)
@@ -824,11 +855,6 @@
     	//init
     	var evt = /touch/.test(e.type) ? e.changedTouches[0] : e;
 
-      if( $('.editing').size() ){
-        return;
-      }
-      e.preventDefault();
-
       var isShape = $(evt.target).hasClass('shape');
       var isText = $(evt.target).closest('.textWrap').size()>0;
 
@@ -836,6 +862,9 @@
 
       var x = evt.pageX;
       var y = evt.pageY;
+      var dx = x-downX;
+      var dy = y-downY;
+
       var dist = downX&&downY && calcDist([downX, downY], [x,y]) || 0;
       downX=downY=null;
 
@@ -848,8 +877,35 @@
         targetEl = el.pop();
         isText = $(targetEl).closest('.textWrap').size()>0;
       }
-      var isHandler = isText && $(evt.target).hasClass('handler');
+      var isHandler = $(evt.target).hasClass('handler');
 
+      if(isHandler){
+
+        var dataoffset = $('.handler').data('offset') ;
+
+        dataoffset.left += dx;
+        dataoffset.top += dy;
+        $('.handler').data('offset', JSON.stringify( dataoffset ) );
+
+        dataoffset2 = $('.textarea').data('offset') ;
+
+        dataoffset2.width = dataoffset.left - dataoffset2.left;
+        dataoffset2.height = dataoffset.top - dataoffset2.top;
+        $('.textarea').data('offset', JSON.stringify( dataoffset2 ) );
+
+        var bbox = $('.editing').data('bbox') ;
+        bbox[1][0] = bbox[0][0]+ dataoffset2.width;
+        bbox[1][1] = bbox[0][1]+ dataoffset2.height;
+        $('.editing').data('bbox', JSON.stringify(bbox) ) ;
+
+        $(evt.target).removeClass('dragHandler');
+        return;
+      }
+
+      if( $('.editing').size() ){
+        return;
+      }
+      e.preventDefault();
 
       enableSelection($('.textarea'));
 
@@ -961,9 +1017,18 @@
       var box = $(targetEl).data('bbox');
       var offset = pointsToRect(box[0], box[1], getTranslateXY(targetEl) );
      $('body').append('<textarea class="text textarea"></textarea>');
+     $('body').append('<div class="handler"></div>');
+
+     var offset2 = { left:offset.left+offset.width, top:offset.top+offset.height } ;
+
+     $('.handler')
+      .data('targetId', $(targetEl).data('id') )
+      .css(offset2);
+
+
      $('.textarea')
-       .data('targetId', $(targetEl)
-        .data('id') ).css(offset)
+       .data('targetId', $(targetEl).data('id') )
+       .css(offset)
        .html( $(targetEl)
         .find('.text').html() )
        .focus();
@@ -1102,6 +1167,8 @@
       var w = Math.abs( startPoint[0] - endPoint[0] );
       var h = Math.abs( startPoint[1] - endPoint[1] );
 
+      if(w<20 || h<20) return;
+
       var attr = {"x":x, "y":y, "width":w, "height":h, "stroke-linecap":"round", "stroke-linejoin":"miter", "stroke-miterlimit":"4", stroke:options['stroke']||'#f00', "stroke-width": swidth }
 
       for(var i in attr){
@@ -1186,15 +1253,35 @@
       textCon.on("focus", ".textarea", function  (e) {
         if( $('.editing').size() )return;
       }).on("blur", ".textarea", function  (e) {
-        $('.editing').find('.text').html( $(this).val() );
-        $('.editing').removeClass('editing').show();
-        $(e.target).remove();
-
-        setTimeout(function(){ svgHistory.update(); }, 100);
+        if( $('.dragHandler').size() ) {
+          return;
+        }
+        //onTextBlur();
 
       });
 
     }
+
+    function onTextBlur(){
+      $('.editing').find('.text').html( $('.textarea').val() );
+      var offset = $('.textarea').offset();
+
+      var trans = ( $('.editing').data('oldTrans') );
+      if(!trans) trans = [0,0];
+      // offset.left += trans[0];
+      // offset.top += trans[1];
+
+      $('.editing').css( {width:offset.width, height:offset.height} );
+      $('.editing').find('.bbox').css( {width:offset.width, height:offset.height} );
+      $('.editing').removeClass('editing').show();
+      try{
+       $('.textarea').remove();
+       $('.handler').remove();
+     }catch(e){}
+
+      setTimeout(function(){ svgHistory.update(); }, 100);
+    }
+
     setupTextEvent();
 
 
@@ -1228,12 +1315,8 @@
       path.append( $bbox );
       $bbox.css({"left":0, "top":0, "width":w, "height":h});
 
-      var $handler = $('<div class="handler"></div>');
-      path.append( $handler );
-      $handler.css({ left:w, top:h });
 
-
-      path.attr("data-bbox", JSON.stringify( [startPoint, endPoint] ) );
+      path.attr("data-bbox", JSON.stringify( [ [x,y], [x+w, y+h] ] ) );
       path.attr("data-tool", 'text' );
       path.attr("data-startpoint", JSON.stringify( startPoint ) );
       path.attr("data-endpoint", JSON.stringify( endPoint ) );
