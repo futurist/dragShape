@@ -92,9 +92,6 @@
     z-index: 99999;
   }
   .textWrap pre{
-    display: block;
-    width: 100%;
-    height: 100%;
     white-space: pre-wrap; /* css-3 */
     white-space: -moz-pre-wrap; /* Mozilla, since 1999 */
     white-space: -pre-wrap; /* Opera 4-6 */
@@ -208,9 +205,9 @@
 </div>
 
 <div class="subtool subtool_text">
-  <button class="btnStrokeWidth2" data-onclick='setTool("circle", {"stroke-width": "-"})'>小</button>
-  <button class="btnStrokeWidth6" data-onclick='setTool("circle", {"stroke-width": "+"})'>大</button>
-  <button class="btnStroke" data-onclick='setTool("circle", {"stroke": "#f0f"})'>颜色</button>
+  <button class="btnStrokeWidth2" data-onclick='setTool("text", {"stroke-width": "-"})'>小</button>
+  <button class="btnStrokeWidth6" data-onclick='setTool("text", {"stroke-width": "+"})'>大</button>
+  <button class="btnStroke" data-onclick='setTool("text", {"stroke": "#f0f"})'>颜色</button>
 </div>
 
 </div>
@@ -272,8 +269,8 @@
       },
       text:{
         "font-family": "Arial",
-        "font-size": 36,
-        "fill":"red",
+        "stroke-width": 12,
+        "stroke":"#f00",
       }
     }
 
@@ -323,14 +320,22 @@
         delete options.toggle;
       }
 
+      var swidth = options['stroke-width'];
+      if(swidth)
       {
-        var swidth = options['stroke-width'];
         delete options['stroke-width'];
         if(swidth=='-') oldOptions['stroke-width'] -= 2;
         if(swidth=='+') oldOptions['stroke-width'] += 2;
-        oldOptions= $.extend(oldOptions, options );
       }
 
+      var fontSize = options['font-size'];
+      if(fontSize)
+      {
+        delete options['font-size'];
+        if(fontSize=='-') oldOptions['font-size'] -= 2;
+        if(fontSize=='+') oldOptions['font-size'] += 2;
+      }
+      oldOptions= $.extend(oldOptions, options );
       return true;
 
     }
@@ -912,6 +917,7 @@
         dataoffset2.height = dataoffset.top - dataoffset2.top;
         $('.textarea').data('offset', JSON.stringify( dataoffset2 ) );
 
+
         var bbox = $('.editing').data('bbox') ;
         bbox[1][0] = bbox[0][0]+ dataoffset2.width;
         bbox[1][1] = bbox[0][1]+ dataoffset2.height;
@@ -1117,7 +1123,7 @@
       if(!options) options = ToolSet['line'];
 
       if(!path){
-        path = makeShape("path", { "class":'shape line', fill:"rgba(255,255,255,0.01)" });
+        path = makeShape("path", { "class":'shape line', fill:"rgba(255,255,255,0.001)" });
         curShapeID = +new Date+Math.random();
         document.querySelector('svg.canvas').appendChild( path );
         path.setAttribute("data-id", curShapeID );
@@ -1151,7 +1157,7 @@
       if(!options) options = ToolSet['rect'];
 
       if(!path){
-        path = makeShape("rect", { "class":'shape rect', fill:"rgba(255,255,255,0.01)" });
+        path = makeShape("rect", { "class":'shape rect', fill:"rgba(255,255,255,0.001)" });
         curShapeID = +new Date+Math.random();
         document.querySelector('svg.canvas').appendChild( path );
         path.setAttribute("data-id", curShapeID );
@@ -1187,7 +1193,7 @@
       if(!options) options = ToolSet['rect'];
 
       if(!path){
-        path = makeShape("rect", { "class":'shape textrect', fill:"rgba(255,255,255,0.01)" });
+        path = makeShape("rect", { "class":'shape textrect', fill:"rgba(255,255,255,0.001)" });
         curShapeID = +new Date+Math.random();
         document.querySelector('svg.canvas').appendChild( path );
         path.setAttribute("data-id", curShapeID );
@@ -1260,11 +1266,20 @@
     }
 
     function onTextBlur(){
-      var val = $('.textarea').val();
-      var prevVal = $('.editing').find('.text').html();
 
-      $('.editing').find('.text').html( val );
+      ApplyLineBreaks( '.textarea' );
+
+      var $text = $('.editing').find('.text');
+      var val = $('.textarea').val();
+      var prevVal = $text.html();
+
+      $text.html( val );
+      $('.editing').show();
+
+      var th = $text.prop('scrollHeight'),  tw = $text.prop('offsetWidth');
       var offset = $('.textarea').offset();
+      offset.width = tw;
+      offset.height = th;
 
       var trans = ( $('.editing').data('oldTrans') );
       if(!trans) trans = [0,0];
@@ -1273,13 +1288,21 @@
 
       $('.editing').css( {width:offset.width, height:offset.height} );
       $('.editing').find('.bbox').css( {width:offset.width, height:offset.height} );
+
+
+      var bbox = $('.editing').data('bbox') ;
+      bbox[1][0] = bbox[0][0]+ offset.width;
+      bbox[1][1] = bbox[0][1]+ offset.height;
+      $('.editing').data('bbox', JSON.stringify(bbox) ) ;
+
+
       try{
-       $('.textarea').remove();
-       $('.handler').remove();
-     }catch(e){}
+         $('.textarea').remove();
+         $('.handler').remove();
+       }catch(e){}
 
       
-      $('.editing').removeClass('editing').show();
+      $('.editing').removeClass('editing');
 
       if(val==''){
         $('.editing').remove();
@@ -1299,7 +1322,7 @@
       $(targetEl).addClass('editing').hide();
       var box = $(targetEl).data('bbox');
       var offset = pointsToRect(box[0], box[1], getTranslateXY(targetEl) );
-     $('body').append('<textarea class="text textarea"></textarea>');
+     $('body').append('<textarea class="text textarea" wrap="hard"></textarea>');
      $('body').append('<div class="handler"></div>');
 
      var offset2 = { left:offset.left+offset.width, top:offset.top+offset.height } ;
@@ -1326,6 +1349,7 @@
       if(!options) options = ToolSet['text'];
       var isCeate = !path;
 
+      
       if(!path){
         path = $('<div class="textWrap"><pre class="text textholder"></pre></div>');
         curShapeID = +new Date+Math.random();
@@ -1333,6 +1357,7 @@
         path.attr("data-id", curShapeID );
       }
 
+      path = $(path);
       var x = Math.min(startPoint[0], endPoint[0]);
       var y = Math.min(startPoint[1], endPoint[1]);
       var w = Math.abs( startPoint[0] - endPoint[0] );
@@ -1341,26 +1366,33 @@
 
       var text = $(path).find('.text');
 
+      text.css({  "color":options.stroke, "font-family": options['font-family'], "font-size": options['stroke-width'] });
+
+      if(!isCeate){
+        h = text.prop('scrollHeight');
+        w = text.prop('scrollWidth');
+      }
+
       path.css({"left":x, "top":y, "width":w, "height":h});
-      text.css({  "color":options.fill, "font-family": options['font-family'], "font-size": options['font-size'] });
 
+      if(isCeate){
+        var $bbox = $('<div class="bbox"></div>');
+        path.append( $bbox );
+      }
+      $bbox = $(path).find('.bbox');
 
-      var $bbox = $('<div class="bbox"></div>');
-      path.append( $bbox );
       $bbox.css({"left":0, "top":0, "width":w, "height":h});
 
 
-      path.attr("data-bbox", JSON.stringify( [ [x,y], [x+w, y+h] ] ) );
-      path.attr("data-tool", 'text' );
-      path.attr("data-startpoint", JSON.stringify( startPoint ) );
-      path.attr("data-endpoint", JSON.stringify( endPoint ) );
-      path.attr("data-options", JSON.stringify( options ) );
-
+        path.attr("data-bbox", JSON.stringify( [ [x,y], [x+w, y+h] ] ) );
+        path.attr("data-tool", 'text' );
+        path.attr("data-startpoint", JSON.stringify( startPoint ) );
+        path.attr("data-endpoint", JSON.stringify( endPoint ) );
+        path.attr("data-options", JSON.stringify( options ) );
 
       if(isCeate){
         text.html( "" );
         textEditMode(path);
-        console.log(234);
       } else {
 
       }
@@ -1381,7 +1413,7 @@
       if(!options) options = ToolSet['circle'];
 
       if(!path){
-        path = makeShape("ellipse", { "class":'shape circle', fill:"rgba(255,255,255,0.01)" });
+        path = makeShape("ellipse", { "class":'shape circle', fill:"rgba(255,255,255,0.001)" });
         curShapeID = +new Date+Math.random();
         document.querySelector('svg.canvas').appendChild( path );
         path.setAttribute("data-id", curShapeID );
@@ -1470,7 +1502,7 @@
         if( !/undefined|NaN/.test(d) ){
 
             if(!path){
-              path = makeShape("path", { "class":'shape curve', fill:"rgba(255,255,255,0.01)" });
+              path = makeShape("path", { "class":'shape curve', fill:"rgba(255,255,255,0.001)" });
               curShapeID = +new Date+Math.random();
               document.querySelector('svg.canvas').appendChild( path );
               path.setAttribute("data-id", curShapeID );
@@ -1781,6 +1813,80 @@ $.fn.disableSelection = function () {
     });
 };
 })(Zepto);
+
+
+function ApplyLineBreaks(strTextAreaId) {
+    var oTextarea = $(strTextAreaId).get(0);
+    if (oTextarea.wrap) {
+        oTextarea.setAttribute("wrap", "off");
+    }
+    else {
+        oTextarea.setAttribute("wrap", "off");
+        var newArea = oTextarea.cloneNode(true);
+        newArea.value = oTextarea.value;
+        oTextarea.parentNode.replaceChild(newArea, oTextarea);
+        oTextarea = newArea;
+    }
+
+    var strRawValue = oTextarea.value;
+    oTextarea.value = "";
+    var nEmptyWidth = oTextarea.scrollWidth;
+
+    function testBreak(strTest) {
+        oTextarea.value = strTest;
+        return oTextarea.scrollWidth > nEmptyWidth;
+    }
+    function findNextBreakLength(strSource, nLeft, nRight) {
+        var nCurrent;
+        if(typeof(nLeft) == 'undefined') {
+            nLeft = 0;
+            nRight = -1;
+            nCurrent = 64;
+        }
+        else {
+            if (nRight == -1)
+                nCurrent = nLeft * 2;
+            else if (nRight - nLeft <= 1)
+                return Math.max(2, nRight);
+            else
+                nCurrent = nLeft + (nRight - nLeft) / 2;
+        }
+        var strTest = strSource.substr(0, nCurrent);
+        var bLonger = testBreak(strTest);
+        if(bLonger)
+            nRight = nCurrent;
+        else
+        {
+            if(nCurrent >= strSource.length)
+                return null;
+            nLeft = nCurrent;
+        }
+        return findNextBreakLength(strSource, nLeft, nRight);
+    }
+
+    var i = 0, j;
+    var strNewValue = "";
+    while (i < strRawValue.length) {
+        var breakOffset = findNextBreakLength(strRawValue.substr(i));
+        if (breakOffset === null) {
+            strNewValue += strRawValue.substr(i);
+            break;
+        }
+        var nLineLength = breakOffset - 1;
+        for (j = nLineLength - 1; j >= 0; j--) {
+            var curChar = strRawValue.charAt(i + j);
+            if (curChar == ' ' || curChar == '-' || curChar == '+') {
+                nLineLength = j + 1;
+                break;
+            }
+        }
+        strNewValue += strRawValue.substr(i, nLineLength) + "\n";
+        i += nLineLength;
+    }
+    oTextarea.value = strNewValue;
+    oTextarea.setAttribute("wrap", "");
+}
+
 
 
   </script>
