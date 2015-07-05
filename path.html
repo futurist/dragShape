@@ -1042,6 +1042,7 @@
     window.addEventListener('keydown', handleShortKey);
 
     function handleShortKey (evt) {
+      if( $('.editing').size() ) return;
       var handled = false;
       var cmd = (evt.ctrlKey ? 1 : 0) |
             (evt.altKey ? 2 : 0) |
@@ -1062,7 +1063,7 @@
 
     if (cmd === 1 || cmd === 8) {
       switch (evt.keyCode) {
-        case 90:
+        case 90:  //Ctrl+Z
           OPHistory.undo();
           break;
       }
@@ -1081,12 +1082,16 @@
 
   var svgHistory = new function(html) {
     var self = this;
+    $('#selrect').hide();
+
     this.html = $('#svgCon').html();
     this.texthtml = $('#textCon').html();
 
     //here is an action we cant to be able to undo/redo
     this.update = function() {
 
+        $('#selrect').hide();
+    
         //this variable will be saved in the undo function's closure
         var oldHtml = self.html;
         var newHtml = $('#svgCon').html();
@@ -1276,8 +1281,10 @@
       $text.html( val );
       $('.editing').show();
 
-      var th = $text.prop('scrollHeight'),  tw = $text.prop('offsetWidth');
       var offset = $('.textarea').offset();
+      $('.editing').css( {width:offset.width, height:offset.height} );
+
+      var th = $text.prop('scrollHeight'),  tw = $text.prop('offsetWidth');
       offset.width = tw;
       offset.height = th;
 
