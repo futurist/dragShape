@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-<meta content="text/html; charset=utf-8" http-equiv="content-type" />
-  <title></title>
+<meta content="text/html; charset=utf-8" http-equiv="content-type">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title></title>
 <style type="text/css">
 
   html, body {
@@ -105,7 +106,7 @@
   .bbox{
     position: absolute;
     z-index: 9999999;
-    background-color: rgba(255,0,0,0.01);
+    background-color: rgba(255,0,0,0);
   }
   [data-hl] .bbox{
     background-color: rgba(255,255,0,0.5);
@@ -163,6 +164,7 @@
 </div>
 
 <div id="drawTool">
+
 <div class="maintool">
   <button class="btnCurve" data-onclick="setTool('curve')">绘制</button>
   <button class="btnLine" data-onclick="setTool('line')">直线</button>
@@ -205,6 +207,11 @@
   <button class="btnStroke" data-onclick='setTool("circle", {"stroke": "#f0f"})'>颜色</button>
 </div>
 
+<div class="subtool subtool_text">
+  <button class="btnStrokeWidth2" data-onclick='setTool("circle", {"stroke-width": "-"})'>小</button>
+  <button class="btnStrokeWidth6" data-onclick='setTool("circle", {"stroke-width": "+"})'>大</button>
+  <button class="btnStroke" data-onclick='setTool("circle", {"stroke": "#f0f"})'>颜色</button>
+</div>
 
 </div>
 
@@ -944,6 +951,8 @@
 
     	if(dragging){
     		dragging=false;
+        
+        $(targetEl).attr('data-oldtrans', JSON.stringify( getTranslateXY(targetEl) ) );
 
         if(isHandler){
 
@@ -1251,7 +1260,10 @@
     }
 
     function onTextBlur(){
-      $('.editing').find('.text').html( $('.textarea').val() );
+      var val = $('.textarea').val();
+      var prevVal = $('.editing').find('.text').html();
+
+      $('.editing').find('.text').html( val );
       var offset = $('.textarea').offset();
 
       var trans = ( $('.editing').data('oldTrans') );
@@ -1261,13 +1273,22 @@
 
       $('.editing').css( {width:offset.width, height:offset.height} );
       $('.editing').find('.bbox').css( {width:offset.width, height:offset.height} );
-      $('.editing').removeClass('editing').show();
       try{
        $('.textarea').remove();
        $('.handler').remove();
      }catch(e){}
 
-      setTimeout(function(){ svgHistory.update(); }, 100);
+      
+      $('.editing').removeClass('editing').show();
+
+      if(val==''){
+        $('.editing').remove();
+        if(prevVal!=''){
+          setTimeout(function(){ svgHistory.update(); }, 100);
+        }
+      } else {
+        setTimeout(function(){ svgHistory.update(); }, 100);
+      }
     }
 
     setupTextEvent();
@@ -1520,7 +1541,7 @@
         var transformAttr =obj.getAttribute('transform');
         transform = (!transformAttr) ? transform :  transformAttr;
         if(!transform ) return [0,0];
-		var zT = transform.match(/translate\(\s*([-0-9]+[\w%]*)\s*,\s*([-0-9]+[\w%]*)\s*\)/);
+		var zT = transform.match(/translate\(\s*([0-9.-]+[\w%]*)\s*,\s*([0-9.-]+[\w%]*)\s*\)/);
         return zT ? [ parseInt(zT[1]), parseInt(zT[2]) ] : [0,0];
     }
 
