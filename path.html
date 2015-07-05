@@ -1153,6 +1153,7 @@
       path.setAttribute("data-endpoint", JSON.stringify( endPoint ) );
       path.setAttribute("data-options", JSON.stringify( options ) );
 
+      addSelectionList(path);
 
     }
 
@@ -1189,6 +1190,7 @@
       path.setAttribute("data-endpoint", JSON.stringify( endPoint ) );
       path.setAttribute("data-options", JSON.stringify( options ) );
 
+      addSelectionList(path);
 
     }
 
@@ -1412,7 +1414,8 @@
       });
       */
 
-
+      addSelectionList(path);
+      
     }
 
     function createCircle (startPoint, endPoint, path, options) {
@@ -1450,6 +1453,8 @@
       path.setAttribute("data-endpoint", JSON.stringify( endPoint ) );
       path.setAttribute("data-options", JSON.stringify( options ) );
 
+      addSelectionList(path);
+      
 
     }
 
@@ -1534,6 +1539,8 @@
         } else {
 
         }
+
+        addSelectionList(path);
 
         return path;
     }
