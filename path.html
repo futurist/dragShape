@@ -72,7 +72,7 @@
     position: absolute;
   }
 
-  #svgCon{
+  #canvasCon, #svgCon{
     position: fixed;
     z-index: 10;
     top:0;
@@ -135,6 +135,8 @@
 </head>
 <body>
 
+<canvas id="canvasCon">
+</canvas>
 <div id="svgCon" style="padding-top:100px;">
 
   <svg width="1640" height='1640' class="canvas" xmlns="http://www.w3.org/2000/svg" version="1.1">
@@ -212,7 +214,7 @@
 
 </div>
 
-
+<canvas></canvas>
 <div id="debug" style="position:fixed; top:100px; left:0; z-index:99999999999"></div>
 
   <script type="text/javascript" src='undoredo.js'></script>
@@ -228,23 +230,30 @@
     var d = "";
     var i = 0;
     var downX, downY, downTimer, prevTime=0;
+    // Path of the points
     var rPath=[];
+
+    //dot distance
     var DOT_DISTANCE=10;
     var DRAW_TOLERANCE=10;
     var drawing = false;
     var dragging = false;
     var selecting = false;
-    var textEditingID = 0;
-    var selectedList = [];
+
+    // the current tool when user select
     var curTool = null;
     var prevEl = null;
 
+    // whether it's touch screen
     var isTouch = ('ontouchstart' in window) || ('DocumentTouch' in window && document instanceof DocumentTouch);
+
+    // touch event uniform to touchscreen & PC
     var downE = isTouch? 'touchstart' :'mousedown';
     var moveE = isTouch? 'touchmove' :'mousemove';
     var upE = isTouch? 'touchend' :'mouseup';
     var leaveE = isTouch? 'touchcancel' :'mouseleave';
 
+    // the preset toolset
     var ToolSet = {
       curve:{
         "stroke-width": 2,
@@ -274,14 +283,17 @@
       }
     }
 
+    // generate new ID for the element
     function NewID () {
       return +new Date()+Math.random();
     }
 
-
+    // init function
     function init () {
       setTool('curve');
       var pos = $('svg.canvas').offset();
+      console.log(pos);
+      $('#canvasCon').css({ left:pos.left+'px', top:pos.top+'px' }).attr({width: pos.width+'px', height: pos.height+'px'});
       $('#textCon').css({ left:pos.left+'px', top:pos.top+'px', width:0+'px', height:0+'px' });
 
       $('svg.canvas').data('id', NewID() );
@@ -300,6 +312,37 @@
     }
     init();
 
+    function exportCanvas () {
+      var svg = document.querySelector('svg');
+      var img = new Image();
+      var canvas = document.querySelector('canvas');
+      canvas.width = svg.offsetWidth;
+      canvas.height = svg.offsetHeight;
+
+      // get svg data
+      var xml = new XMLSerializer().serializeToString(svg);
+      console.log(xml);
+      
+      // make it base64
+      var svg64 = btoa(xml);
+      var b64Start = 'data:image/svg+xml;base64,';
+
+      // prepend a "header"
+      var image64 = b64Start + svg64;
+
+      // set it as the source of the img element
+      img.src = image64;
+
+      // draw the image onto the canvas
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      window.open( canvas.toDataURL() );
+    }
+
+    // get new options from selected options buttons
+    /* The format: 
+    *  oldOptions: { "stroke-width":23, "stroke-color":"red" }
+    *  setOptions: { "color":"red" }
+    */
     function getOptions (oldOptions, setOptions) {
       // oldOptions parameter pass by ref
 
@@ -341,7 +384,7 @@
     }
 
 
-
+    
     function setTool (tool, options) {
 
       if(!options) options={};
@@ -355,13 +398,14 @@
       if( $('[data-hl]').size() ){
         shapeA = $('[data-hl]').toArray();
       }else {
-        getOptions(ToolSet[tool], options );
 
         /*
           prevent remember last shape
         */
         //shapeA = $('[data-id="'+ curShapeID +'"]').toArray();
       }
+        getOptions(ToolSet[tool], options );
+
 
       var isDirty = false;
       shapeA.forEach(function  (v) {
